@@ -8,6 +8,7 @@ class Variable:
         data (np.ndarray): 変数の中身
         grad (np.ndarray): 微分した値
         creator (Function): この変数を作った関数
+        generation (int): 世代
     """
 
     def __init__(self, data: np.ndarray) -> None:
@@ -24,6 +25,7 @@ class Variable:
         self.data = data
         self.grad = None
         self.creator = None
+        self.generation = 0
 
     def set_creator(self, func: "Function") -> None:
         """この変数を作った関数を設定する
@@ -32,6 +34,7 @@ class Variable:
             func: この変数を作った関数
         """
         self.creator = func
+        self.generation = func.generation + 1  # 親の関数より1大きい世代に設定
 
     def cleargrad(self) -> None:
         """微分を初期化する"""
@@ -42,7 +45,22 @@ class Variable:
         if self.grad is None:
             self.grad = np.ones_like(self.data)  # 逆伝播の初期値が無ければ1
 
-        funcs = [self.creator]  # 処理すべき関数のリスト
+        funcs = []  # 処理すべき関数のリスト
+        seen_set = set()  # 関数の重複を避けるための集合
+
+        def add_func(f: "Function") -> None:
+            """関数をリストに追加して世代順に並び替える
+
+            Args:
+                f: 追加する関数
+            """
+            if f not in seen_set:
+                funcs.append(f)
+                seen_set.add(f)
+                funcs.sort(key=lambda x: x.generation)
+
+        add_func(self.creator)  # この変数の生みの親をリストに追加
+
         while funcs:
             f = funcs.pop()  # 関数を取得
             gys = [output.grad for output in f.outputs]  # 関数の出力の微分をリストにまとめる
@@ -57,7 +75,7 @@ class Variable:
                     x.grad = x.grad + gx
 
                 if x.creator is not None:
-                    funcs.append(x.creator)  # 1つ前の関数をリストに追加
+                    add_func(x.creator)  # 1つ前の関数をリストに追加
 
 
 def as_array(x: any) -> np.ndarray:
@@ -82,6 +100,7 @@ class Function:
     Attributes:
         inputs (list): 入力された変数のリスト
         outputs (list): 出力された変数のリスト
+        generation (int): 世代
     """
 
     def __call__(self, *inputs: Variable) -> list[Variable] | Variable:
@@ -99,6 +118,7 @@ class Function:
             ys = (ys,)  # タプルでない場合はタプルに変換
         outputs = [Variable(as_array(y)) for y in ys]  # ndarrayにした計算結果をVariableに変換
 
+        self.generation = max([x.generation for x in inputs])  # 入力された変数の中で最も大きい世代を設定
         for output in outputs:
             output.set_creator(self)  # 出力変数に生みの親を覚えさせる
         self.inputs = inputs  # 入力された変数を覚える
