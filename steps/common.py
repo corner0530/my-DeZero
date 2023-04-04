@@ -79,3 +79,21 @@ class Exp(Function):
         """
         y = np.exp(x)
         return y
+
+
+def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
+    """数値微分を行う関数
+
+    Args:
+        f: 対象の関数
+        x: 対象の変数
+        eps: 微小な値
+
+    Returns:
+        中心差分近似における微分値
+    """
+    x0 = Variable(x.data - eps)
+    x1 = Variable(x.data + eps)
+    y0 = f(x0)
+    y1 = f(x1)
+    return (y1.data - y0.data) / (2 * eps)
