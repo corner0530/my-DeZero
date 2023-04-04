@@ -33,6 +33,10 @@ class Variable:
         """
         self.creator = func
 
+    def cleargrad(self) -> None:
+        """微分を初期化する"""
+        self.grad = None
+
     def backward(self) -> None:
         """この変数の微分を計算する"""
         if self.grad is None:
@@ -47,7 +51,10 @@ class Variable:
                 gxs = (gxs,)  # タプルでない場合はタプルに変換
 
             for x, gx in zip(f.inputs, gxs):  # 入力に微分を設定
-                x.grad = gx
+                if x.grad is None:  # 逆伝播の初期値が無ければ微分を設定
+                    x.grad = gx
+                else:  # あれば加算
+                    x.grad = x.grad + gx
 
                 if x.creator is not None:
                     funcs.append(x.creator)  # 1つ前の関数をリストに追加
