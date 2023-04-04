@@ -30,11 +30,15 @@ class Variable:
 
     def backward(self) -> None:
         """この変数の微分を計算する"""
-        f = self.creator  # 1. 関数を取得
-        if f is not None:
-            x = f.input  # 2. 関数の入力を取得
-            x.grad = f.backward(self.grad)  # 3. 関数のbackwardメソッドを呼ぶ
-            x.backward()  # 自分より1つ前の変数のbackwardメソッドを呼ぶ(再帰)
+        funcs = [self.creator]  # 処理すべき関数のリスト
+        while funcs:
+            f = funcs.pop()  # 関数を取得
+            x = f.input  # 関数の入力を取得
+            y = f.output  # 関数の出力を取得
+            x.grad = f.backward(y.grad)  # 関数のbackwardメソッドを呼ぶ
+
+            if x.creator is not None:
+                funcs.append(x.creator)  # 1つ前の関数をリストに追加
 
 
 class Function:
