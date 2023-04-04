@@ -41,12 +41,16 @@ class Variable:
         funcs = [self.creator]  # 処理すべき関数のリスト
         while funcs:
             f = funcs.pop()  # 関数を取得
-            x = f.input  # 関数の入力を取得
-            y = f.output  # 関数の出力を取得
-            x.grad = f.backward(y.grad)  # 関数のbackwardメソッドを呼ぶ
+            gys = [output.grad for output in f.outputs]  # 関数の出力の微分をリストにまとめる
+            gxs = f.backward(*gys)  # 関数のbackwardメソッドを呼ぶ
+            if not isinstance(gxs, tuple):
+                gxs = (gxs,)  # タプルでない場合はタプルに変換
 
-            if x.creator is not None:
-                funcs.append(x.creator)  # 1つ前の関数をリストに追加
+            for x, gx in zip(f.inputs, gxs):  # 入力に微分を設定
+                x.grad = gx
+
+                if x.creator is not None:
+                    funcs.append(x.creator)  # 1つ前の関数をリストに追加
 
 
 def as_array(x: any) -> np.ndarray:
@@ -142,7 +146,7 @@ class Square(Function):
         Returns:
             gx: 入力側に伝わる微分
         """
-        x = self.input.data
+        x = self.inputs[0].data
         gx = 2 * x * gy
         return gx
 
@@ -183,7 +187,7 @@ class Exp(Function):
         Returns:
             gx: 入力側に伝わる微分
         """
-        x = self.input.data
+        x = self.inputs[0].data
         gx = np.exp(x) * gy
         return gx
 
@@ -215,6 +219,18 @@ class Add(Function):
         """
         y = x0 + x1
         return y
+
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx0: 入力側に伝わる微分,
+            gx1: 入力側に伝わる微分
+        """
+        return gy, gy
 
 
 def add(x0: Variable, x1: Variable) -> Variable:
