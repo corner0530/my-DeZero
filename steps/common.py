@@ -63,3 +63,19 @@ class Square(Function):
         """
         y = x**2
         return y  # 具体的な計算を実装
+
+
+class Exp(Function):
+    """指数関数を表すクラス"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = np.exp(x)
+        return y
