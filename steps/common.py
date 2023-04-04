@@ -6,6 +6,7 @@ class Variable:
 
     Attributes:
         data (np.ndarray): 変数の中身
+        grad (np.ndarray): 微分した値
     """
 
     def __init__(self, data: np.ndarray) -> None:
@@ -15,12 +16,16 @@ class Variable:
             data: 変数の中身
         """
         self.data = data
+        self.grad = None
 
 
 class Function:
     """関数の基底クラス
 
     全ての関数に共通する機能を実装する
+
+    Attributes:
+        input (Variable): 入力された変数
     """
 
     def __call__(self, input: Variable) -> Variable:
@@ -35,6 +40,7 @@ class Function:
         x = input.data  # データを取り出す
         y = self.forward(x)  # 入力を受け取って計算
         output = Variable(y)  # 計算結果をVariableに変換
+        self.input = input  # 入力された変数を覚える
         return output
 
     def forward(self, x: np.ndarray) -> np.ndarray:
@@ -42,6 +48,17 @@ class Function:
 
         Args:
             x: 入力
+
+        raises:
+            NotImplementedError: 未実装の場合
+        """
+        raise NotImplementedError()
+
+    def backward(self, gy: np.ndarray) -> np.ndarray:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
 
         raises:
             NotImplementedError: 未実装の場合
@@ -64,6 +81,19 @@ class Square(Function):
         y = x**2
         return y  # 具体的な計算を実装
 
+    def backward(self, gy: np.ndarray) -> np.ndarray:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.input.data
+        gx = 2 * x * gy
+        return gx
+
 
 class Exp(Function):
     """指数関数を表すクラス"""
@@ -79,6 +109,19 @@ class Exp(Function):
         """
         y = np.exp(x)
         return y
+
+    def backward(self, gy: np.ndarray) -> np.ndarray:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.input.data
+        gx = np.exp(x) * gy
+        return gx
 
 
 def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
