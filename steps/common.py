@@ -1,3 +1,5 @@
+import weakref
+
 import numpy as np
 
 
@@ -63,7 +65,7 @@ class Variable:
 
         while funcs:
             f = funcs.pop()  # 関数を取得
-            gys = [output.grad for output in f.outputs]  # 関数の出力の微分をリストにまとめる
+            gys = [output().grad for output in f.outputs]  # 関数の出力の微分をリストにまとめる
             gxs = f.backward(*gys)  # 関数のbackwardメソッドを呼ぶ
             if not isinstance(gxs, tuple):
                 gxs = (gxs,)  # タプルでない場合はタプルに変換
@@ -122,7 +124,7 @@ class Function:
         for output in outputs:
             output.set_creator(self)  # 出力変数に生みの親を覚えさせる
         self.inputs = inputs  # 入力された変数を覚える
-        self.outputs = outputs  # 出力も覚える
+        self.outputs = [weakref.ref(output) for output in outputs]  # 出力の弱参照を持つ
 
         return outputs if len(outputs) > 1 else outputs[0]  # 出力が1つのときはリストではなくそのまま返す
 
