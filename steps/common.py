@@ -7,6 +7,7 @@ class Variable:
     Attributes:
         data (np.ndarray): 変数の中身
         grad (np.ndarray): 微分した値
+        creator (Function): この変数を作った関数
     """
 
     def __init__(self, data: np.ndarray) -> None:
@@ -17,6 +18,23 @@ class Variable:
         """
         self.data = data
         self.grad = None
+        self.creator = None
+
+    def set_creator(self, func: "Function") -> None:
+        """この変数を作った関数を設定する
+
+        Args:
+            func: この変数を作った関数
+        """
+        self.creator = func
+
+    def backward(self) -> None:
+        """この変数の微分を計算する"""
+        f = self.creator  # 1. 関数を取得
+        if f is not None:
+            x = f.input  # 2. 関数の入力を取得
+            x.grad = f.backward(self.grad)  # 3. 関数のbackwardメソッドを呼ぶ
+            x.backward()  # 自分より1つ前の変数のbackwardメソッドを呼ぶ(再帰)
 
 
 class Function:
@@ -26,6 +44,7 @@ class Function:
 
     Attributes:
         input (Variable): 入力された変数
+        output (Variable): 出力された変数
     """
 
     def __call__(self, input: Variable) -> Variable:
@@ -40,7 +59,9 @@ class Function:
         x = input.data  # データを取り出す
         y = self.forward(x)  # 入力を受け取って計算
         output = Variable(y)  # 計算結果をVariableに変換
+        output.set_creator(self)  # 出力変数に生みの親を覚えさせる
         self.input = input  # 入力された変数を覚える
+        self.output = output  # 出力も覚える
         return output
 
     def forward(self, x: np.ndarray) -> np.ndarray:
