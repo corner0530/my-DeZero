@@ -1,6 +1,17 @@
+import contextlib
 import weakref
 
 import numpy as np
+
+
+class Config:
+    """設定を管理するクラス
+
+    Attributes:
+        enable_backprop (bool): 逆伝播を有効にするかどうか
+    """
+
+    enable_backprop = True
 
 
 class Variable:
@@ -42,8 +53,12 @@ class Variable:
         """微分を初期化する"""
         self.grad = None
 
-    def backward(self) -> None:
-        """この変数の微分を計算する"""
+    def backward(self, retain_grad: bool = False) -> None:
+        """この変数の微分を計算する
+
+        Args:
+            retain_grad: 途中の変数の微分を保持するかどうか
+        """
         if self.grad is None:
             self.grad = np.ones_like(self.data)  # 逆伝播の初期値が無ければ1
 
@@ -78,6 +93,10 @@ class Variable:
 
                 if x.creator is not None:
                     add_func(x.creator)  # 1つ前の関数をリストに追加
+
+            if not retain_grad:
+                for y in f.outputs:
+                    y().grad = None  # yはweakref
 
 
 def as_array(x: any) -> np.ndarray:
@@ -120,11 +139,14 @@ class Function:
             ys = (ys,)  # タプルでない場合はタプルに変換
         outputs = [Variable(as_array(y)) for y in ys]  # ndarrayにした計算結果をVariableに変換
 
-        self.generation = max([x.generation for x in inputs])  # 入力された変数の中で最も大きい世代を設定
-        for output in outputs:
-            output.set_creator(self)  # 出力変数に生みの親を覚えさせる
-        self.inputs = inputs  # 入力された変数を覚える
-        self.outputs = [weakref.ref(output) for output in outputs]  # 出力の弱参照を持つ
+        if Config.enable_backprop:
+            self.generation = max(
+                [x.generation for x in inputs]
+            )  # 入力された変数の中で最も大きい世代を設定
+            for output in outputs:
+                output.set_creator(self)  # 出力変数に生みの親を覚えさせる
+            self.inputs = inputs  # 入力された変数を覚える
+            self.outputs = [weakref.ref(output) for output in outputs]  # 出力の弱参照を持つ
 
         return outputs if len(outputs) > 1 else outputs[0]  # 出力が1つのときはリストではなくそのまま返す
 
@@ -291,3 +313,24 @@ def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
     y0 = f(x0)
     y1 = f(x1)
     return (y1.data - y0.data) / (2 * eps)
+
+
+@contextlib.contextmanager  # コンテキストマネージャを作成するデコレータ
+def using_config(name: str, value: bool) -> contextlib._GeneratorContextManager:
+    """設定を変更するコンテキストマネージャ
+
+    Args:
+        name: 設定名
+        value: 設定値
+    """
+    old_value = getattr(Config, name)
+    setattr(Config, name, value)  # 前処理として設定を変更
+    try:
+        yield  # 例外が発生するとここにも送られる
+    finally:
+        setattr(Config, name, old_value)  # 後処理として設定を元に戻す
+
+
+def no_grad() -> contextlib._GeneratorContextManager:
+    """withブロックの中で順伝播のコードのみ実行するコンテキストマネージャ"""
+    return using_config("enable_backprop", False)
