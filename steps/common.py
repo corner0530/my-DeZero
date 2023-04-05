@@ -69,43 +69,45 @@ class Function:
     全ての関数に共通する機能を実装する
 
     Attributes:
-        input (Variable): 入力された変数
-        output (Variable): 出力された変数
+        inputs (list): 入力された変数のリスト
+        outputs (list): 出力された変数のリスト
     """
 
-    def __call__(self, input: Variable) -> Variable:
+    def __call__(self, inputs: list[Variable]) -> list[Variable]:
         """呼び出されたときの処理
 
         Args:
-            input: 入力
+            inputs: 入力のリスト
 
         Returns:
-            output: 出力
+            outputs: 出力のリスト
         """
-        x = input.data  # データを取り出す
-        y = self.forward(x)  # 入力を受け取って計算
-        output = Variable(as_array(y))  # ndarrayにした計算結果をVariableに変換
-        output.set_creator(self)  # 出力変数に生みの親を覚えさせる
-        self.input = input  # 入力された変数を覚える
-        self.output = output  # 出力も覚える
-        return output
+        xs = [x.data for x in inputs]  # リストの各要素からデータを取り出す
+        ys = self.forward(xs)  # 入力を受け取って計算
+        outputs = [Variable(as_array(y)) for y in ys]  # ndarrayにした計算結果をVariableに変換
 
-    def forward(self, x: np.ndarray) -> np.ndarray:
+        for output in outputs:
+            output.set_creator(self)  # 出力変数に生みの親を覚えさせる
+        self.inputs = inputs  # 入力された変数を覚える
+        self.outputs = outputs  # 出力も覚える
+        return outputs
+
+    def forward(self, xs: list[np.ndarray]) -> tuple[np.ndarray]:
         """順伝播
 
         Args:
-            x: 入力
+            xs: 入力のリスト
 
         raises:
             NotImplementedError: 未実装の場合
         """
         raise NotImplementedError()
 
-    def backward(self, gy: np.ndarray) -> np.ndarray:
+    def backward(self, gys: list[np.ndarray]) -> tuple[np.ndarray]:
         """逆伝播
 
         Args:
-            gy: 出力側から伝わる微分
+            gys: 出力側から伝わる微分のリスト
 
         raises:
             NotImplementedError: 未実装の場合
@@ -193,6 +195,23 @@ def exp(x: Variable) -> Variable:
         y: 出力
     """
     return Exp()(x)
+
+
+class Add(Function):
+    """加算を表すクラス"""
+
+    def forward(self, xs: list[np.ndarray]) -> tuple[np.ndarray]:
+        """順伝播
+
+        Args:
+            xs: 入力のリスト
+
+        Returns:
+            y: 出力,
+        """
+        x0, x1 = xs
+        y = x0 + x1
+        return (y,)
 
 
 def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
