@@ -5,3 +5,27 @@
 ## 環境
 
 - Python 3.10
+
+## 注意事項
+
+DeZero をパッケージとしてインストールするため，最初に以下を実行する．
+
+- conda の場合
+  ```bash
+  conda develop .
+  ```
+- pip の場合
+  ```bash
+  pip install -e .
+  ```
+
+アンインストールする場合は
+
+- conda の場合
+  ```bash
+  conda develop -u .
+  ```
+- pip の場合
+  ```bash
+  pip uninstall .
+  ```
