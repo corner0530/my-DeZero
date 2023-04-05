@@ -28,6 +28,7 @@ class Variable:
         size (int): 変数の要素数
         dtype (np.dtype): 変数のデータ型
     """
+
     __array_priority__ = 200  # 演算子の優先度を設定
 
     def __init__(self, data: np.ndarray, name: str = None) -> None:
@@ -404,6 +405,228 @@ def mul(x0: Variable, x1: any) -> Variable:
 
 Variable.__mul__ = mul  # *演算子をオーバーロード
 Variable.__rmul__ = mul  # 右側がVariableの場合のオーバーロード
+
+
+class Neg(Function):
+    """負数を表すクラス"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = -x
+        return y
+
+    def backward(self, gy: np.ndarray) -> np.ndarray:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        return -gy
+
+
+def neg(x: Variable) -> Variable:
+    """負数を計算する関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Neg()(x)
+
+
+Variable.__neg__ = neg  # 符号を表す-演算子をオーバーロード
+
+
+class Sub(Function):
+    """引き算を表すクラス"""
+
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x0: 入力
+            x1: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x0 - x1
+        return y
+
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx0: 入力側に伝わる微分,
+            gx1: 入力側に伝わる微分
+        """
+        return gy, -gy
+
+
+def sub(x0: Variable, x1: any) -> Variable:
+    """引き算を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    return Sub()(x0, x1)
+
+
+def rsub(x0: Variable, x1: any) -> Variable:
+    """subのx0がVariableでない場合の引き算を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    return sub(x1, x0)
+
+
+Variable.__sub__ = sub  # -演算子をオーバーロード
+Variable.__rsub__ = rsub  # 右側がVariableの場合のオーバーロード
+
+
+class Div(Function):
+    """除算を表すクラス"""
+
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x0: 入力
+            x1: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x0 / x1
+        return y
+
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx0: 入力側に伝わる微分,
+            gx1: 入力側に伝わる微分
+        """
+        x0 = self.inputs[0].data
+        x1 = self.inputs[1].data
+        gx0 = gy / x1
+        gx1 = gy * (-x0 / x1**2)
+        return gx0, gx1
+
+
+def div(x0: Variable, x1: any) -> Variable:
+    """除算を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    return Div()(x0, x1)
+
+
+def rdiv(x0: Variable, x1: any) -> Variable:
+    """divのx0がVariableでない場合の除算を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    return Div()(x1, x0)
+
+
+Variable.__truediv__ = div  # /演算子をオーバーロード
+Variable.__rtruediv__ = rdiv  # 右側がVariableの場合のオーバーロード
+
+
+class Pow(Function):
+    """べき乗を表すクラス"""
+
+    def __init__(self, c: int | float) -> None:
+        """コンストラクタ
+
+        Args:
+            c: べき指数
+        """
+        self.c = c
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x**self.c
+        return y
+
+    def backward(self, gy: np.ndarray) -> np.ndarray:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.inputs[0].data
+        c = self.c
+        gx = c * x ** (c - 1) * gy
+        return gx
+
+
+def pow(x: Variable, c: int | float) -> Variable:
+    """べき乗を計算する関数
+
+    Args:
+        x: 入力
+        c: べき指数
+
+    Returns:
+        y: 出力
+    """
+    return Pow(c)(x)  # cを初期化時に与える
+
+
+Variable.__pow__ = pow  # **演算子をオーバーロード
 
 
 def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
