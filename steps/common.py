@@ -19,16 +19,22 @@ class Variable:
 
     Attributes:
         data (np.ndarray): 変数の中身
+        name (str): 変数の名前
         grad (np.ndarray): 微分した値
         creator (Function): この変数を作った関数
         generation (int): 世代
+        shape (tuple): 変数の形状
+        ndim (int): 変数の次元数
+        size (int): 変数の要素数
+        dtype (np.dtype): 変数のデータ型
     """
 
-    def __init__(self, data: np.ndarray) -> None:
+    def __init__(self, data: np.ndarray, name: str = None) -> None:
         """初期化
 
         Args:
             data: 変数の中身
+            name: 変数の名前
         """
         if data is not None:
             if not isinstance(data, np.ndarray):
@@ -36,9 +42,41 @@ class Variable:
                 raise TypeError(f"{type(data)} is not supported")
 
         self.data = data
+        self.name = name
         self.grad = None
         self.creator = None
         self.generation = 0
+
+    @property  # これによってインスタンス変数としてアクセスできる
+    def shape(self) -> tuple[int]:
+        """変数の形状"""
+        return self.data.shape
+
+    @property
+    def ndim(self) -> int:
+        """変数の次元数"""
+        return self.data.ndim
+
+    @property
+    def size(self) -> int:
+        """変数の要素数"""
+        return self.data.size
+
+    @property
+    def dtype(self) -> np.dtype:
+        """変数のデータ型"""
+        return self.data.dtype
+
+    def __len__(self) -> int:
+        """変数の長さ"""
+        return len(self.data)
+
+    def __repr__(self) -> str:
+        """変数の文字列表現"""
+        if self.data is None:
+            return "variable(None)"
+        p = str(self.data).replace("\n", "\n" + " " * 9)  # 複数行の場合は文字の開始位置を調整
+        return "variable(" + p + ")"
 
     def set_creator(self, func: "Function") -> None:
         """この変数を作った関数を設定する
