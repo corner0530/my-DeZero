@@ -28,6 +28,7 @@ class Variable:
         size (int): 変数の要素数
         dtype (np.dtype): 変数のデータ型
     """
+    __array_priority__ = 200  # 演算子の優先度を設定
 
     def __init__(self, data: np.ndarray, name: str = None) -> None:
         """初期化
@@ -137,6 +138,20 @@ class Variable:
                     y().grad = None  # yはweakref
 
 
+def as_variable(obj: any) -> Variable:
+    """Variableインスタンスに変換する
+
+    Args:
+        obj: 変換する値
+
+    Returns:
+        変換した変数
+    """
+    if isinstance(obj, Variable):
+        return obj
+    return Variable(obj)
+
+
 def as_array(x: any) -> np.ndarray:
     """スカラー値ならばndarrayに変換する
 
@@ -171,6 +186,8 @@ class Function:
         Returns:
             outputs: 出力のリスト
         """
+        inputs = [as_variable(x) for x in inputs]  # 入力の各要素をVariableに変換
+
         xs = [x.data for x in inputs]  # リストの各要素からデータを取り出す
         ys = self.forward(*xs)  # 入力のリストの要素を展開
         if not isinstance(ys, tuple):
@@ -322,7 +339,7 @@ class Add(Function):
         return gy, gy
 
 
-def add(x0: Variable, x1: Variable) -> Variable:
+def add(x0: Variable, x1: any) -> Variable:
     """加算を計算する関数
 
     Args:
@@ -332,10 +349,12 @@ def add(x0: Variable, x1: Variable) -> Variable:
     Returns:
         y: 出力
     """
+    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
     return Add()(x0, x1)
 
 
 Variable.__add__ = add  # +演算子をオーバーロード
+Variable.__radd__ = add  # 右側がVariableの場合のオーバーロード
 
 
 class Mul(Function):
@@ -369,7 +388,7 @@ class Mul(Function):
         return gy * x1, gy * x0
 
 
-def mul(x0: Variable, x1: Variable) -> Variable:
+def mul(x0: Variable, x1: any) -> Variable:
     """乗算を計算する関数
 
     Args:
@@ -379,10 +398,12 @@ def mul(x0: Variable, x1: Variable) -> Variable:
     Returns:
         y: 出力
     """
+    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
     return Mul()(x0, x1)
 
 
 Variable.__mul__ = mul  # *演算子をオーバーロード
+Variable.__rmul__ = mul  # 右側がVariableの場合のオーバーロード
 
 
 def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
