@@ -335,6 +335,56 @@ def add(x0: Variable, x1: Variable) -> Variable:
     return Add()(x0, x1)
 
 
+Variable.__add__ = add  # +演算子をオーバーロード
+
+
+class Mul(Function):
+    """乗算を表すクラス"""
+
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x0: 入力
+            x1: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x0 * x1
+        return y
+
+    def backward(self, gy: np.ndarray) -> tuple[np.ndarray]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx0: 入力側に伝わる微分,
+            gx1: 入力側に伝わる微分
+        """
+        x0 = self.inputs[0].data
+        x1 = self.inputs[1].data
+        return gy * x1, gy * x0
+
+
+def mul(x0: Variable, x1: Variable) -> Variable:
+    """乗算を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Mul()(x0, x1)
+
+
+Variable.__mul__ = mul  # *演算子をオーバーロード
+
+
 def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
     """数値微分を行う関数
 
