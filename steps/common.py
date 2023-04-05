@@ -73,7 +73,7 @@ class Function:
         outputs (list): 出力された変数のリスト
     """
 
-    def __call__(self, inputs: list[Variable]) -> list[Variable]:
+    def __call__(self, *inputs: Variable) -> list[Variable] | Variable:
         """呼び出されたときの処理
 
         Args:
@@ -83,14 +83,17 @@ class Function:
             outputs: 出力のリスト
         """
         xs = [x.data for x in inputs]  # リストの各要素からデータを取り出す
-        ys = self.forward(xs)  # 入力を受け取って計算
+        ys = self.forward(*xs)  # 入力のリストの要素を展開
+        if not isinstance(ys, tuple):
+            ys = (ys,)  # タプルでない場合はタプルに変換
         outputs = [Variable(as_array(y)) for y in ys]  # ndarrayにした計算結果をVariableに変換
 
         for output in outputs:
             output.set_creator(self)  # 出力変数に生みの親を覚えさせる
         self.inputs = inputs  # 入力された変数を覚える
         self.outputs = outputs  # 出力も覚える
-        return outputs
+
+        return outputs if len(outputs) > 1 else outputs[0]  # 出力が1つのときはリストではなくそのまま返す
 
     def forward(self, xs: list[np.ndarray]) -> tuple[np.ndarray]:
         """順伝播
@@ -200,18 +203,31 @@ def exp(x: Variable) -> Variable:
 class Add(Function):
     """加算を表すクラス"""
 
-    def forward(self, xs: list[np.ndarray]) -> tuple[np.ndarray]:
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
         """順伝播
 
         Args:
-            xs: 入力のリスト
+            x0: 入力
+            x1: 入力
 
         Returns:
-            y: 出力,
+            y: 出力
         """
-        x0, x1 = xs
         y = x0 + x1
-        return (y,)
+        return y
+
+
+def add(x0: Variable, x1: Variable) -> Variable:
+    """加算を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Add()(x0, x1)
 
 
 def numerical_diff(f: Function, x: Variable, eps: float = 1e-4) -> float:
