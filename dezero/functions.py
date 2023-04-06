@@ -83,3 +83,44 @@ def cos(x: Variable) -> Variable:
         y: 出力
     """
     return Cos()(x)
+
+
+class Tanh(Function):
+    """tanh関数を表すクラス"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = np.tanh(x)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        y = self.outputs[0]()
+        gx = gy * (1 - y * y)
+        return gx
+
+
+def tanh(x: Variable) -> Variable:
+    """tanh関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Tanh()(x)
