@@ -1,5 +1,6 @@
 import numpy as np
 
+from dezero import utils
 from dezero.core import Function, Variable, as_variable
 
 
@@ -238,3 +239,63 @@ def transpose(x: Variable, axes: tuple[int] = None) -> Variable:
         y: 出力
     """
     return Transpose(axes)(x)
+
+
+class Sum(Function):
+    """和を計算する関数を表すクラス
+
+    Attributes:
+        axis (int): 和をとる軸
+        keepdims (bool): 出力の形状を入力の形状に合わせるかどうか
+        x_shape (tuple): 入力の形状
+    """
+
+    def __init__(self, axis: int | tuple[int] = None, keepdims: bool = False) -> None:
+        """コンストラクタ
+
+        Args:
+            axis: 和をとる軸
+            keepdims: 出力の形状を入力の形状に合わせるかどうか
+        """
+        self.axis = axis
+        self.keepdims = keepdims
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        self.x_shape = x.shape
+        y = x.sum(axis=self.axis, keepdims=self.keepdims)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        gy = utils.reshape_sum_backward(gy, self.x_shape, self.axis, self.keepdims)
+        gx = broadcast_to(gy, self.x_shape)  # broadcase_to関数はstep40で実装
+        return gx
+
+
+def sum(x: Variable, axis: int | tuple[int] = None, keepdims: bool = False) -> Variable:
+    """和を計算する関数
+
+    Args:
+        x: 入力
+        axis: 和をとる軸
+        keepdims: 出力の形状を入力の形状に合わせるかどうか
+
+    Returns:
+        y: 出力
+    """
+    return Sum(axis, keepdims)(x)

@@ -205,6 +205,18 @@ class Variable:
         """転置する"""
         return dezero.functions.transpose(self)
 
+    def sum(self, axis: int = None, keepdims: bool = False) -> "Variable":
+        """和を計算する
+
+        Args:
+            axis: 和をとる軸
+            keepdims: 出力の形状を入力の形状に合わせるかどうか
+
+        Returns:
+            和
+        """
+        return dezero.functions.sum(self, axis, keepdims)
+
 
 def as_variable(obj: any) -> Variable:
     """Variableインスタンスに変換する
