@@ -3,6 +3,8 @@ import weakref
 
 import numpy as np
 
+import dezero
+
 
 # =============================================================================
 # Config
@@ -54,6 +56,7 @@ class Variable:
         ndim (int): 変数の次元数
         size (int): 変数の要素数
         dtype (np.dtype): 変数のデータ型
+        T (Variable): 転置した変数
     """
 
     __array_priority__ = 200  # 演算子の優先度を設定
@@ -167,6 +170,40 @@ class Variable:
             if not retain_grad:
                 for y in f.outputs:
                     y().grad = None  # yはweakref
+
+    def reshape(self, *shape: tuple[int]) -> "Variable":
+        """形状を変更する
+
+        Args:
+            *shape: 変更後の形状
+
+        Returns:
+            変更後の変数
+        """
+        if len(shape) == 1 and isinstance(shape[0], (tuple, list)):
+            shape = shape[0]
+        return dezero.functions.reshape(self, shape)
+
+    def transpose(self, *axes: tuple[int]) -> "Variable":
+        """転置して軸を入れ替える
+
+        Args:
+            *axes: 軸の順番
+
+        Returns:
+            転置した変数
+        """
+        if len(axes) == 0:
+            axes = None
+        elif len(axes) == 1:
+            if isinstance(axes[0], (tuple, list)) or axes[0] is None:
+                axes = axes[0]
+        return dezero.functions.transpose(self, axes)
+
+    @property
+    def T(self) -> "Variable":
+        """転置する"""
+        return dezero.functions.transpose(self)
 
 
 def as_variable(obj: any) -> Variable:

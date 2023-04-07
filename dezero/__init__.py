@@ -22,4 +22,6 @@ from dezero.core import (
     using_config,
 )
 
+import dezero.functions
+
 setup_variable()
