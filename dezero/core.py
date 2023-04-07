@@ -312,7 +312,12 @@ class Function:
 # 四則演算 / 演算子のオーバーロード
 # =============================================================================
 class Add(Function):
-    """加算を表すクラス"""
+    """加算を表すクラス
+
+    Attributes:
+        x0_shape (tuple): 入力x0の形状
+        x1_shape (tuple): 入力x1の形状
+    """
 
     def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
         """順伝播
@@ -324,6 +329,8 @@ class Add(Function):
         Returns:
             y: 出力
         """
+        self.x0_shape = x0.shape
+        self.x1_shape = x1.shape
         y = x0 + x1
         return y
 
@@ -337,7 +344,12 @@ class Add(Function):
             gx0: 入力側に伝わる微分,
             gx1: 入力側に伝わる微分
         """
-        return gy, gy
+        gx0 = gy
+        gx1 = gy
+        if self.x0_shape != self.x1_shape:  # ブロードキャストする場合
+            gx0 = dezero.functions.sum_to(gx0, self.x0_shape)
+            gx1 = dezero.functions.sum_to(gx1, self.x1_shape)
+        return gx0, gx1
 
 
 def add(x0: Variable, x1: any) -> Variable:
@@ -381,7 +393,12 @@ class Mul(Function):
             gx1: 入力側に伝わる微分
         """
         x0, x1 = self.inputs
-        return gy * x1, gy * x0
+        gx0 = gy * x1
+        gx1 = gy * x0
+        if x0.shape != x1.shape:  # ブロードキャストする場合
+            gx0 = dezero.functions.sum_to(gx0, x0.shape)
+            gx1 = dezero.functions.sum_to(gx1, x1.shape)
+        return gx0, gx1
 
 
 def mul(x0: Variable, x1: any) -> Variable:
@@ -438,7 +455,12 @@ def neg(x: Variable) -> Variable:
 
 
 class Sub(Function):
-    """引き算を表すクラス"""
+    """引き算を表すクラス
+
+    Attributes:
+        x0_shape (tuple): 入力x0の形状
+        x1_shape (tuple): 入力x1の形状
+    """
 
     def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
         """順伝播
@@ -450,6 +472,8 @@ class Sub(Function):
         Returns:
             y: 出力
         """
+        self.x0_shape = x0.shape
+        self.x1_shape = x1.shape
         y = x0 - x1
         return y
 
@@ -463,7 +487,12 @@ class Sub(Function):
             gx0: 入力側に伝わる微分,
             gx1: 入力側に伝わる微分
         """
-        return gy, -gy
+        gx0 = gy
+        gx1 = -gy
+        if self.x0_shape != self.x1_shape:  # for broadcast
+            gx0 = dezero.functions.sum_to(gx0, self.x0_shape)
+            gx1 = dezero.functions.sum_to(gx1, self.x1_shape)
+        return gx0, gx1
 
 
 def sub(x0: Variable, x1: any) -> Variable:
@@ -523,6 +552,9 @@ class Div(Function):
         x0, x1 = self.inputs
         gx0 = gy / x1
         gx1 = gy * (-x0 / x1**2)
+        if x0.shape != x1.shape:  # for broadcast
+            gx0 = dezero.functions.sum_to(gx0, x0.shape)
+            gx1 = dezero.functions.sum_to(gx1, x1.shape)
         return gx0, gx1
 
 

@@ -125,6 +125,27 @@ def plot_dot_graph(
         pass
 
 
+def sum_to(x: Variable, shape: tuple[int]) -> Variable:
+    """要素の和を求めて指定した形状に整形する
+
+    Args:
+        x: 入力
+        shape: 出力の形状
+
+    Returns:
+        指定した形状に整形した結果
+    """
+    ndim = len(shape)
+    lead = x.ndim - ndim
+    lead_axis = tuple(range(lead))
+
+    axis = tuple([i + lead for i, sx in enumerate(shape) if sx == 1])
+    y = x.sum(lead_axis + axis, keepdims=True)
+    if lead > 0:
+        y = y.squeeze(lead_axis)
+    return y
+
+
 def reshape_sum_backward(
     gy: Variable, x_shape: tuple, axis: int | tuple, keepdims: bool
 ) -> Variable:

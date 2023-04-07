@@ -283,7 +283,7 @@ class Sum(Function):
             gx: 入力側に伝わる微分
         """
         gy = utils.reshape_sum_backward(gy, self.x_shape, self.axis, self.keepdims)
-        gx = broadcast_to(gy, self.x_shape)  # broadcase_to関数はstep40で実装
+        gx = broadcast_to(gy, self.x_shape)
         return gx
 
 
@@ -299,3 +299,117 @@ def sum(x: Variable, axis: int | tuple[int] = None, keepdims: bool = False) -> V
         y: 出力
     """
     return Sum(axis, keepdims)(x)
+
+
+class SumTo(Function):
+    """要素の和を求めて形状を変える関数を表すクラス
+
+    Attributes:
+        shape (tuple): 出力の形状
+        x_shape (tuple): 入力の形状
+    """
+
+    def __init__(self, shape: tuple) -> None:
+        """コンストラクタ
+
+        Args:
+            shape: 出力の形状
+        """
+        self.shape = shape
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        self.x_shape = x.shape
+        y = utils.sum_to(x, self.shape)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        gx = broadcast_to(gy, self.x_shape)
+        return gx
+
+
+def sum_to(x: Variable, shape: tuple) -> Variable:
+    """要素の和を求めて形状を変える関数
+
+    Args:
+        x: 入力
+        shape: 出力の形状
+
+    Returns:
+        y: 出力
+    """
+    if x.shape == shape:
+        return as_variable(x)
+    return SumTo(shape)(x)
+
+
+class BroadcastTo(Function):
+    """形状を変える関数を表すクラス
+
+    Attributes:
+        shape (tuple): 出力の形状
+        x_shape (tuple): 入力の形状
+    """
+
+    def __init__(self, shape: tuple) -> None:
+        """コンストラクタ
+
+        Args:
+            shape: 出力の形状
+        """
+        self.shape = shape
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        self.x_shape = x.shape
+        y = np.broadcast_to(x, self.shape)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        gx = sum_to(gy, self.x_shape)
+        return gx
+
+
+def broadcast_to(x: Variable, shape: tuple) -> Variable:
+    """形状を変える関数
+
+    Args:
+        x: 入力
+        shape: 出力の形状
+
+    Returns:
+        y: 出力
+    """
+    if x.shape == shape:
+        return as_variable(x)
+    return BroadcastTo(shape)(x)
