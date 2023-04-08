@@ -195,3 +195,21 @@ def logsumexp(x: Variable, axis: int = 1):
     s = np.log(y.sum(axis=axis, keepdims=True))
     m += s
     return m
+
+
+def pair(x: int | tuple) -> tuple:
+    """整数を2つの要素を持つタプルに変換
+
+    Args:
+        x: 整数またはタプル
+
+    Returns:
+        2つの要素を持つタプル
+    """
+    if isinstance(x, int):
+        return (x, x)
+    elif isinstance(x, tuple):
+        assert len(x) == 2
+        return x
+    else:
+        raise ValueError

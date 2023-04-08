@@ -30,5 +30,6 @@ import dezero.datasets
 import dezero.functions
 import dezero.layers
 import dezero.optimizers
+import dezero.transforms
 
 setup_variable()
