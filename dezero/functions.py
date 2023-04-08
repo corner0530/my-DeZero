@@ -458,3 +458,66 @@ def matmul(x: Variable, w: Variable) -> Variable:
         y: 出力
     """
     return MatMul()(x, w)
+
+
+def mean_squared_error_simple(x0: Variable, x1: Variable) -> Variable:
+    """平均二乗誤差を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    x0, x1 = as_variable(x0), as_variable(x1)
+    diff = x0 - x1
+    y = sum(diff**2) / len(diff)
+    return y
+
+
+class MeanSquaredError(Function):
+    """平均二乗誤差を計算する関数を表すクラス"""
+
+    def forward(self, x0: np.ndarray, x1: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x0: 入力
+            x1: 入力
+
+        Returns:
+            y: 出力
+        """
+        diff = x0 - x1
+        y = (diff**2).sum() / len(diff)
+        return y
+
+    def backward(self, gy: Variable) -> tuple[Variable, Variable]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx0: 入力x0側に伝わる微分
+            gx1: 入力x1側に伝わる微分
+        """
+        x0, x1 = self.inputs
+        diff = x0 - x1
+        gx0 = gy * diff * (2.0 / len(diff))
+        gx1 = -gx0
+        return gx0, gx1
+
+
+def mean_squared_error(x0: Variable, x1: Variable) -> Variable:
+    """平均二乗誤差を計算する関数
+
+    Args:
+        x0: 入力
+        x1: 入力
+
+    Returns:
+        y: 出力
+    """
+    return MeanSquaredError()(x0, x1)
