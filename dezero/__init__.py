@@ -27,5 +27,6 @@ from dezero.models import Model
 
 import dezero.functions
 import dezero.layers
+import dezero.optimizers
 
 setup_variable()
