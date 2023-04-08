@@ -24,7 +24,7 @@ class Layer:
             name: インスタンス変数の名前
             value: インスタンス変数の値
         """
-        if isinstance(value, Parameter):
+        if isinstance(value, (Parameter, Layer)):
             # Parameterクラスのインスタンスの場合は，_paramsに追加する
             self._params.add(name)
         super().__setattr__(name, value)
@@ -66,7 +66,13 @@ class Layer:
             自身が持つParameterインスタンス
         """
         for name in self._params:
-            yield self.__dict__[name]
+            obj = self.__dict__[name]
+
+            if isinstance(obj, Layer):
+                # Layerクラスのインスタンスの場合は，そのparamsを返す
+                yield from obj.params()
+            else:
+                yield obj
 
     def cleargrads(self) -> None:
         """全てのパラメータの勾配をリセット"""

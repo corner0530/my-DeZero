@@ -23,6 +23,7 @@ from dezero.core import (
     using_config,
 )
 from dezero.layers import Layer
+from dezero.models import Model
 
 import dezero.functions
 import dezero.layers
