@@ -4,6 +4,9 @@ from dezero import utils
 from dezero.core import Function, Variable, as_variable
 
 
+# =============================================================================
+# Basic functions: sin / cos / tanh / exp / log
+# =============================================================================
 class Sin(Function):
     """sin関数を表すクラス"""
 
@@ -168,6 +171,47 @@ def exp(x: Variable) -> Variable:
     return Exp()(x)
 
 
+class Log(Function):
+    """log関数を表すクラス"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = np.log(x)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.inputs[0]
+        gx = gy / x
+        return gx
+
+
+def log(x: Variable) -> Variable:
+    """log関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Log()(x)
+
+
 class Reshape(Function):
     """テンソルを整形する関数を表すクラス
 
@@ -280,6 +324,104 @@ def transpose(x: Variable, axes: tuple[int] = None) -> Variable:
         y: 出力
     """
     return Transpose(axes)(x)
+
+
+class GetItem(Function):
+    """インデックスを指定して要素を取り出す関数を表すクラス
+
+    Attributes:
+        slices (tuple): スライス
+    """
+
+    def __init__(self, slices: tuple) -> None:
+        """コンストラクタ
+
+        Args:
+            slices: スライス
+        """
+        self.slices = slices
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x[self.slices]
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.inputs[0]
+        f = GetItemGrad(self.slices, x.shape)
+        return f(gy)
+
+
+class GetItemGrad(Function):
+    """インデックスを指定して要素を取り出す関数の逆伝播を表すクラス
+
+    Attributes:
+        slices (tuple): スライス
+        in_shape (tuple): 入力の形状
+    """
+
+    def __init__(self, slices: tuple, in_shape: tuple) -> None:
+        """コンストラクタ
+
+        Args:
+            slices: スライス
+            in_shape: 入力の形状
+        """
+        self.slices = slices
+        self.in_shape = in_shape
+
+    def forward(self, gy: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        gx = np.zeros(self.in_shape)
+        np.add.at(gx, self.slices, gy)
+        return gx
+
+    def backward(self, ggx: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            ggx: 入力側から伝わる微分
+
+        Returns:
+            ggy: 出力側に伝わる微分
+        """
+        return get_item(ggx, self.slices)
+
+
+def get_item(x: Variable, slices: tuple) -> Variable:
+    """インデックスを指定して要素を取り出す関数
+
+    Args:
+        x: 入力
+        slices: スライス
+
+    Returns:
+        y: 出力
+    """
+    f = GetItem(slices)
+    return f(x)
 
 
 class Sum(Function):
@@ -628,6 +770,80 @@ def sigmoid_simple(x: Variable) -> Variable:
     return y
 
 
+def softmax_simple(x: Variable, axis: int = 1) -> Variable:
+    """ソフトマックス関数の簡易版
+
+    Args:
+        x: 入力
+        axis: ソフトマックス関数を適用する軸
+
+    Returns:
+        y: 出力
+    """
+    x = as_variable(x)
+    y = exp(x)
+    sum_y = sum(y, axis=axis, keepdims=True)
+    return y / sum_y
+
+
+class Softmax(Function):
+    """ソフトマックス関数を表すクラス
+
+    Attributes:
+        axis: ソフトマックス関数を適用する軸
+    """
+
+    def __init__(self, axis: int = 1) -> None:
+        """コンストラクタ
+
+        Args:
+            axis: ソフトマックス関数を適用する軸
+        """
+        self.axis = axis
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x - x.max(axis=self.axis, keepdims=True)
+        y = np.exp(y)
+        y /= y.sum(axis=self.axis, keepdims=True)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        y = self.outputs[0]()
+        gx = gy * y
+        sumdx = gx.sum(axis=self.axis, keepdims=True)
+        gx -= y * sumdx
+        return gx
+
+
+def softmax(x: Variable, axis: int = 1) -> Variable:
+    """ソフトマックス関数
+
+    Args:
+        x: 入力
+        axis: ソフトマックス関数を適用する軸
+
+    Returns:
+        y: 出力
+    """
+    return Softmax(axis)(x)
+
+
 def mean_squared_error_simple(x0: Variable, x1: Variable) -> Variable:
     """平均二乗誤差を計算する関数
 
@@ -689,3 +905,135 @@ def mean_squared_error(x0: Variable, x1: Variable) -> Variable:
         y: 出力
     """
     return MeanSquaredError()(x0, x1)
+
+
+def softmax_cross_entropy_simple(x: Variable, t: Variable) -> Variable:
+    """ソフトマックス関数と交差エントロピー誤差を合わせて計算する関数の簡易版
+
+    Args:
+        x:
+        t: 教師データ
+
+    Returns:
+        y: 出力
+    """
+    x, t = as_variable(x), as_variable(t)
+    N = x.shape[0]
+
+    p = softmax(x)
+    p = clip(p, 1e-15, 1.0)  # log(0)を防ぐためにpの値を1e-15以上とする
+    log_p = log(p)
+    tlog_p = log_p[np.arange(N), t.data]
+    y = -1 * sum(tlog_p) / N
+    return y
+
+
+class SoftmaxCrossEntropy(Function):
+    """ソフトマックス関数と交差エントロピー誤差を合わせて計算する関数を表すクラス"""
+
+    def forward(self, x: np.ndarray, t: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+            t: 教師データ
+
+        Returns:
+            y: 出力
+        """
+        N = x.shape[0]
+        log_z = utils.logsumexp(x, axis=1)
+        log_p = x - log_z
+        log_p = log_p[np.arange(N), t.ravel()]
+        y = -log_p.sum() / np.float32(N)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x, t = self.inputs
+        N, CLS_NUM = x.shape
+
+        gy *= 1 / N
+        y = softmax(x)
+        t_onehot = np.eye(CLS_NUM, dtype=t.dtype)[t.data]
+        y = (y - t_onehot) * gy
+        return y
+
+
+def softmax_cross_entropy(x: Variable, t: Variable) -> Variable:
+    """ソフトマックス関数と交差エントロピー誤差を合わせて計算する関数
+
+    Args:
+        x: 入力
+        t: 教師データ
+
+    Returns:
+        y: 出力
+    """
+    return SoftmaxCrossEntropy()(x, t)
+
+
+class Clip(Function):
+    """上限と下限の範囲内に収める関数を表すクラス
+
+    Attributes:
+        x_min: xの下限
+        x_max: xの上限
+    """
+
+    def __init__(self, x_min: float, x_max: float) -> None:
+        """コンストラクタ
+
+        Args:
+            x_min: xの下限
+            x_max: xの上限
+        """
+        self.x_min = x_min
+        self.x_max = x_max
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = np.clip(x, self.x_min, self.x_max)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.inputs[0]
+        mask = (x.data >= self.x_min) * (x.data <= self.x_max)
+        gx = gy * mask
+        return gx
+
+
+def clip(x: Variable, x_min: float, x_max: float) -> Variable:
+    """上限と下限の範囲内に収める関数
+
+    Args:
+        x: 入力
+        x_min: xの下限
+        x_max: xの上限
+
+    Returns:
+        y: 出力
+    """
+    return Clip(x_min, x_max)(x)

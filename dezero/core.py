@@ -653,6 +653,7 @@ def setup_variable() -> None:
     Variable.__truediv__ = div  # /演算子をオーバーロード
     Variable.__rtruediv__ = rdiv  # 右側がVariableの場合のオーバーロード
     Variable.__pow__ = pow  # **演算子をオーバーロード
+    Variable.__getitem__ = dezero.functions.get_item
 
     Variable.matmul = dezero.functions.matmul
     Variable.dot = dezero.functions.matmul

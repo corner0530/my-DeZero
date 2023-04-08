@@ -1,6 +1,8 @@
 import os
 import subprocess
 
+import numpy as np
+
 from dezero import Function, Variable
 
 
@@ -176,3 +178,20 @@ def reshape_sum_backward(
 
     gy = gy.reshape(shape)  # reshape
     return gy
+
+
+def logsumexp(x: Variable, axis: int = 1):
+    """logsumexp関数
+
+    Args:
+        x: 入力
+        axis: 和をとる軸
+
+    Returns:
+        出力
+    """
+    m = x.max(axis=axis, keepdims=True)
+    y = np.exp(x - m)
+    s = np.log(y.sum(axis=axis, keepdims=True))
+    m += s
+    return m
