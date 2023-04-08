@@ -127,6 +127,47 @@ def tanh(x: Variable) -> Variable:
     return Tanh()(x)
 
 
+class Exp(Function):
+    """exp関数を表すクラス"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = np.exp(x)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        y = self.outputs[0]()
+        gx = gy * y
+        return gx
+
+
+def exp(x: Variable) -> Variable:
+    """exp関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Exp()(x)
+
+
 class Reshape(Function):
     """テンソルを整形する関数を表すクラス
 
@@ -458,6 +499,133 @@ def matmul(x: Variable, w: Variable) -> Variable:
         y: 出力
     """
     return MatMul()(x, w)
+
+
+class Linear(Function):
+    """線形変換を計算する関数を表すクラス"""
+
+    def forward(self, x: np.ndarray, w: np.ndarray, b: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+            w: 重み
+            b: バイアス
+
+        Returns:
+            y: 出力
+        """
+        y = x.dot(w)
+        if b is not None:
+            y += b
+        return y
+
+    def backward(self, gy: Variable) -> tuple[Variable, Variable, Variable]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分,
+            gw: 重み側に伝わる微分,
+            gb: バイアス側に伝わる微分
+        """
+        x, w, b = self.inputs
+        gb = None if b.data is None else sum_to(gy, b.shape)
+        gx = matmul(gy, w.T)
+        gw = matmul(x.T, gy)
+        return gx, gw, gb
+
+
+def linear(x: Variable, w: Variable, b: Variable = None) -> Variable:
+    """線形変換を計算する関数
+
+    Args:
+        x: 入力
+        w: 重み
+        b: バイアス
+
+    Returns:
+        y: 出力
+    """
+    return Linear()(x, w, b)
+
+
+def linear_simple(x: Variable, w: Variable, b: Variable = None) -> Variable:
+    """線形変換を計算する関数の簡易版
+
+    Args:
+        x: 入力
+        w: 入力
+        b: 入力
+
+    Returns:
+        y: 出力
+    """
+    t = matmul(x, w)
+    if b is None:
+        return t
+
+    y = t + b
+    t.data = None  # tをメモリから削除
+    return y
+
+
+class Sigmoid(Function):
+    """シグモイド関数を計算する関数を表すクラス"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        # y = 1 / (1 + np.exp(-x))
+        y = np.tanh(x * 0.5) * 0.5 + 0.5  # 実装の改良
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        y = self.outputs[0]()
+        gx = gy * y * (1 - y)
+        return gx
+
+
+def sigmoid(x: Variable) -> Variable:
+    """シグモイド関数を計算する関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Sigmoid()(x)
+
+
+def sigmoid_simple(x: Variable) -> Variable:
+    """シグモイド関数を計算する関数の簡易版
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    x = as_variable(x)
+    y = 1 / (1 + exp(-x))
+    return y
 
 
 def mean_squared_error_simple(x0: Variable, x1: Variable) -> Variable:
