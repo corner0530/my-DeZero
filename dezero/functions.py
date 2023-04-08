@@ -413,3 +413,48 @@ def broadcast_to(x: Variable, shape: tuple) -> Variable:
     if x.shape == shape:
         return as_variable(x)
     return BroadcastTo(shape)(x)
+
+
+class MatMul(Function):
+    """行列積を計算する関数を表すクラス"""
+
+    def forward(self, x: np.ndarray, w: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+            w: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x.dot(w)
+        return y
+
+    def backward(self, gy: Variable) -> tuple[Variable, Variable]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力x側に伝わる微分
+            gw: 入力w側に伝わる微分
+        """
+        x, w = self.inputs
+        gx = matmul(gy, w.T)
+        gw = matmul(x.T, gy)
+        return gx, gw
+
+
+def matmul(x: Variable, w: Variable) -> Variable:
+    """行列積を計算する関数
+
+    Args:
+        x: 入力
+        w: 入力
+
+    Returns:
+        y: 出力
+    """
+    return MatMul()(x, w)
