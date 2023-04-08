@@ -14,6 +14,7 @@
 
 from dezero.core import (
     Function,
+    Parameter,
     Variable,
     as_array,
     as_variable,
@@ -21,7 +22,9 @@ from dezero.core import (
     setup_variable,
     using_config,
 )
+from dezero.layers import Layer
 
 import dezero.functions
+import dezero.layers
 
 setup_variable()

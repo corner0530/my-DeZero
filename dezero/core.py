@@ -218,6 +218,10 @@ class Variable:
         return dezero.functions.sum(self, axis, keepdims)
 
 
+class Parameter(Variable):
+    pass
+
+
 def as_variable(obj: any) -> Variable:
     """Variableインスタンスに変換する
 
