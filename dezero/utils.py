@@ -257,6 +257,24 @@ def get_file(url: str, file_name: str = None) -> str:
     return file_path
 
 
+# =============================================================================
+# others
+# =============================================================================
+def get_deconv_outsize(size: int, k: int, s: int, p: int) -> int:
+    """転置畳み込み層の出力サイズを計算
+
+    Args:
+        size: 入力サイズ
+        k: カーネルサイズ
+        s: ストライド
+        p: パディング
+
+    Returns:
+        出力サイズ
+    """
+    return s * (size - 1) + k - 2 * p
+
+
 def get_conv_outsize(input_size: int, kernel_size: int, stride: int, pad: int) -> int:
     """畳み込み層の出力サイズを計算
 

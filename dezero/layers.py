@@ -6,6 +6,7 @@ import numpy as np
 import dezero.functions as F
 from dezero import cuda
 from dezero.core import Parameter
+from dezero.utils import pair
 
 
 class Layer:
@@ -138,6 +139,9 @@ class Layer:
             param.data = npz[key]
 
 
+# =============================================================================
+# Linear / Conv2d / Deconv2d
+# =============================================================================
 class Linear(Layer):
     """線形変換を行う層
 
@@ -202,4 +206,168 @@ class Linear(Layer):
             self._init_w(xp)
 
         y = F.linear(x, self.w, self.b)
+        return y
+
+
+class Conv2d(Layer):
+    """2次元畳み込みを行う層
+
+    Attributes:
+        w (Parameter): 重み
+        b (Parameter): バイアス
+        in_channels (int): 入力チャンネル数
+        out_channels (int): 出力チャンネル数
+        kernel_size (int | tuple[int]): カーネルサイズ
+        stride (int | tuple[int]): ストライド
+        pad (int | tuple[int]): パディング
+        dtype (np.dtype): パラメータのデータ型
+    """
+    def __init__(
+        self,
+        out_channels: int,
+        kernel_size: int | tuple[int],
+        stride: int | tuple[int] = 1,
+        pad: int | tuple[int] = 0,
+        nobias: bool = False,
+        dtype: np.dtype = np.float32,
+        in_channels: int = None,
+    ) -> None:
+        """コンストラクタ
+
+        Args:
+            out_channels: 出力チャンネル数
+            kernel_size: カーネルサイズ
+            stride: ストライド
+            pad: パディング
+            nobias: バイアスを使用するかどうか
+            dtype: パラメータのデータ型
+            in_channels: 入力チャンネル数
+        """
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.pad = pad
+        self.dtype = dtype
+
+        self.w = Parameter(None, name="w")
+        if in_channels is not None:
+            self._init_w()
+
+        if nobias:
+            self.b = None
+        else:
+            self.b = Parameter(np.zeros(out_channels, dtype=dtype), name="b")
+
+    def _init_w(self, xp: object = np) -> None:
+        """重みの初期化
+
+        Args:
+            xp: npかcupy
+        """
+        C = self.in_channels
+        OC = self.out_channels
+        KH, KW = pair(self.kernel_size)
+        scale = np.sqrt(1 / (C * KH * KW))
+        w_data = xp.random.randn(OC, C, KH, KW).astype(self.dtype) * scale
+        self.w.data = w_data
+
+    def forward(self, x: object) -> object:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        if self.w.data is None:
+            self.in_channels = x.shape[1]
+            xp = cuda.get_array_module(x)
+            self._init_w(xp)
+
+        y = F.conv2d(x, self.w, self.b, self.stride, self.pad)
+        return y
+
+
+class Deconv2d(Layer):
+    """2次元転置畳み込みを行う層
+
+    Attributes:
+        w (Parameter): 重み
+        b (Parameter): バイアス
+        in_channels (int): 入力チャンネル数
+        out_channels (int): 出力チャンネル数
+        kernel_size (int | tuple[int]): カーネルサイズ
+        stride (int | tuple[int]): ストライド
+        pad (int | tuple[int]): パディング
+        dtype (np.dtype): パラメータのデータ型
+    """
+    def __init__(
+        self,
+        out_channels: int,
+        kernel_size: int | tuple[int],
+        stride: int | tuple[int] = 1,
+        pad: int | tuple[int] = 0,
+        nobias: bool = False,
+        dtype: np.dtype = np.float32,
+        in_channels: int = None,
+    ) -> None:
+        """コンストラクタ
+
+        Args:
+            out_channels: 出力チャンネル数
+            kernel_size: カーネルサイズ
+            stride: ストライド
+            pad: パディング
+            nobias: バイアスを使用するかどうか
+            dtype: パラメータのデータ型
+            in_channels: 入力チャンネル数
+        """
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.pad = pad
+        self.dtype = dtype
+
+        self.w = Parameter(None, name="w")
+        if in_channels is not None:
+            self._init_w()
+
+        if nobias:
+            self.b = None
+        else:
+            self.b = Parameter(np.zeros(out_channels, dtype=dtype), name="b")
+
+    def _init_w(self, xp: object = np) -> None:
+        """重みの初期化
+
+        Args:
+            xp: npかcupy
+        """
+        C = self.in_channels
+        OC = self.out_channels
+        KH, KW = pair(self.kernel_size)
+        scale = np.sqrt(1 / (C * KH * KW))
+        w_data = xp.random.randn(C, OC, KH, KW).astype(self.dtype) * scale
+        self.w.data = w_data
+
+    def forward(self, x: object) -> object:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        if self.w.data is None:
+            self.in_channels = x.shape[1]
+            xp = cuda.get_array_module(x)
+            self._init_w(xp)
+
+        y = F.deconv2d(x, self.w, self.b, self.stride, self.pad)
         return y
