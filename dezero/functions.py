@@ -770,6 +770,48 @@ def sigmoid_simple(x: Variable) -> Variable:
     return y
 
 
+class ReLU(Function):
+    """ReLUを表すクラス"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = np.maximum(x, 0.0)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.inputs[0]
+        mask = x.data > 0
+        gx = gy * mask
+        return gx
+
+
+def relu(x: Variable) -> Variable:
+    """ReLU
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return ReLU()(x)
+
+
 def softmax_simple(x: Variable, axis: int = 1) -> Variable:
     """ソフトマックス関数の簡易版
 

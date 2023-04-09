@@ -1,5 +1,6 @@
 import os
 import subprocess
+import urllib.request
 
 import numpy as np
 
@@ -195,6 +196,65 @@ def logsumexp(x: Variable, axis: int = 1):
     s = np.log(y.sum(axis=axis, keepdims=True))
     m += s
     return m
+
+
+# =============================================================================
+# download function
+# =============================================================================
+def show_progress(block_num: int, block_size: int, total_size: int) -> None:
+    """ダウンロードの進捗を表示
+
+    Args:
+        block_num: ダウンロードしたブロック数
+        block_size: ブロックサイズ
+        total_size: 全体のサイズ
+    """
+    bar_template = "\r[{}] {:.2f}%"
+
+    downloaded = block_num * block_size
+    p = downloaded / total_size * 100
+    i = int(downloaded / total_size * 30)
+    if p >= 100.0:
+        p = 100.0
+    if i >= 30:
+        i = 30
+    bar = "#" * i + "." * (30 - i)
+    print(bar_template.format(bar, p), end="")
+
+
+cache_dir = os.path.join(os.path.expanduser("~"), ".dezero")
+
+
+def get_file(url: str, file_name: str = None) -> str:
+    """キャッシュが無ければファイルをダウンロード
+
+    Args:
+        url: ダウンロードするファイルのURL
+        file_name: ダウンロードするファイルのファイル名
+
+    Returns:
+        ダウンロードしたファイルの絶対パス
+    """
+    if file_name is None:
+        file_name = url[url.rfind("/") + 1 :]
+    file_path = os.path.join(cache_dir, file_name)
+
+    if not os.path.exists(cache_dir):
+        os.mkdir(cache_dir)
+
+    if os.path.exists(file_path):
+        return file_path
+
+    print("Downloading: " + file_name)
+    try:
+        urllib.request.urlretrieve(url, file_path, show_progress)
+    except (Exception, KeyboardInterrupt):
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
+    print(" Done")
+
+    return file_path
 
 
 def pair(x: int | tuple) -> tuple:
