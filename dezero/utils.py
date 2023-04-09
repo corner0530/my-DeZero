@@ -257,6 +257,21 @@ def get_file(url: str, file_name: str = None) -> str:
     return file_path
 
 
+def get_conv_outsize(input_size: int, kernel_size: int, stride: int, pad: int) -> int:
+    """畳み込み層の出力サイズを計算
+
+    Args:
+        input_size: 入力サイズ
+        kernel_size: カーネルサイズ
+        stride: ストライド
+        pad: パディング
+
+    Returns:
+        出力サイズ
+    """
+    return (input_size + pad * 2 - kernel_size) // stride + 1
+
+
 def pair(x: int | tuple) -> tuple:
     """整数を2つの要素を持つタプルに変換
 
