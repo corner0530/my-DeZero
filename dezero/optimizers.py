@@ -1,8 +1,6 @@
 import math
 
-import numpy as np
-
-from dezero import Layer, Model, Parameter
+from dezero import Layer, Model, Parameter, cuda
 
 
 # =============================================================================
@@ -120,7 +118,8 @@ class MomentumSGD(Optimizer):
         """
         v_key = id(param)
         if v_key not in self.vs:
-            self.vs[v_key] = np.zeros_like(param.data)
+            xp = cuda.get_array_module(param.data)
+            self.vs[v_key] = xp.zeros_like(param.data)
 
         v = self.vs[v_key]
         v *= self.momentum
@@ -155,14 +154,16 @@ class AdaGrad(Optimizer):
         Args:
             param: パラメータ
         """
+        xp = cuda.get_array_module(param.data)
+
         h_key = id(param)
         if h_key not in self.hs:
-            self.hs[h_key] = np.zeros_like(param.data)
+            self.hs[h_key] = xp.zeros_like(param.data)
 
         h = self.hs[h_key]
         grad = param.grad.data
         h += grad * grad
-        param.data -= self.lr * grad / (np.sqrt(h) + self.eps)
+        param.data -= self.lr * grad / (xp.sqrt(h) + self.eps)
 
 
 class AdaDelta(Optimizer):
@@ -194,10 +195,12 @@ class AdaDelta(Optimizer):
         Args:
             param: パラメータ
         """
+        xp = cuda.get_array_module(param.data)
+
         key = id(param)
         if key not in self.msg:
-            self.msg[key] = np.zeros_like(param.data)
-            self.msdx[key] = np.zeros_like(param.data)
+            self.msg[key] = xp.zeros_like(param.data)
+            self.msdx[key] = xp.zeros_like(param.data)
 
         msg = self.msg[key]
         msdx = self.msdx[key]
@@ -205,7 +208,7 @@ class AdaDelta(Optimizer):
 
         msg *= self.rho
         msg += (1 - self.rho) * grad * grad
-        dx = grad * np.sqrt((msdx + self.eps) / (msg + self.eps))
+        dx = grad * xp.sqrt((msdx + self.eps) / (msg + self.eps))
         msdx *= self.rho
         msdx += (1 - self.rho) * dx * dx
         param.data -= dx
@@ -271,14 +274,16 @@ class Adam(Optimizer):
         Args:
             param: パラメータ
         """
+        xp = cuda.get_array_module(param.data)
+
         key = id(param)
         if key not in self.ms:
-            self.ms[key] = np.zeros_like(param.data)
-            self.vs[key] = np.zeros_like(param.data)
+            self.ms[key] = xp.zeros_like(param.data)
+            self.vs[key] = xp.zeros_like(param.data)
 
         m, v = self.ms[key], self.vs[key]
         grad = param.grad.data
 
         m += (1 - self.beta1) * (grad - m)
         v += (1 - self.beta2) * (grad * grad - v)
-        param.data -= self.lr * m / (np.sqrt(v) + self.eps)
+        param.data -= self.lr * m / (xp.sqrt(v) + self.eps)

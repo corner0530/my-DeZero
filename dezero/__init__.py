@@ -22,13 +22,14 @@ from dezero.core import (
     setup_variable,
     using_config,
 )
+from dezero.dataloaders import DataLoader
+from dezero.datasets import Dataset
 from dezero.layers import Layer
 from dezero.models import Model
-from dezero.datasets import Dataset
-from dezero.dataloaders import DataLoader
 
-import dezero.datasets
+import dezero.cuda
 import dezero.dataloaders
+import dezero.datasets
 import dezero.functions
 import dezero.layers
 import dezero.optimizers

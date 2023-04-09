@@ -2,23 +2,32 @@ import math
 
 import numpy as np
 
-from dezero import Dataset
+from dezero import cuda
+from dezero.datasets import Dataset
 
 
 class DataLoader:
-    def __init__(self, dataset: Dataset, batch_size: int, shuffle: bool = True) -> None:
+    def __init__(
+        self,
+        dataset: Dataset,
+        batch_size: int,
+        shuffle: bool = True,
+        gpu: bool = False,
+    ) -> None:
         """コンストラクタ
 
         Args:
             dataset: データセット
             batch_size: バッチサイズ
             shuffle: エポックごとにデータをシャッフルするかどうか
+            gpu: GPUを使用するかどうか
         """
         self.dataset = dataset
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.data_size = len(dataset)
         self.max_iter = math.ceil(self.data_size / self.batch_size)
+        self.gpu = gpu
         self.reset()
 
     def reset(self) -> None:
@@ -50,8 +59,10 @@ class DataLoader:
         i, batch_size = self.iteration, self.batch_size
         batch_index = self.index[i * batch_size : (i + 1) * batch_size]
         batch = [self.dataset[i] for i in batch_index]
-        x = np.array([example[0] for example in batch])
-        t = np.array([example[1] for example in batch])
+
+        xp = cuda.cupy if self.gpu else np
+        x = xp.array([example[0] for example in batch])
+        t = xp.array([example[1] for example in batch])
 
         self.iteration += 1
         return x, t
@@ -64,3 +75,11 @@ class DataLoader:
             t: 教師データ
         """
         return self.__next__()
+
+    def to_cpu(self) -> None:
+        """データをCPUに移す"""
+        self.gpu = False
+
+    def to_gpu(self) -> None:
+        """データをGPUに移す"""
+        self.gpu = True

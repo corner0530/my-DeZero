@@ -5,6 +5,13 @@ import numpy as np
 
 import dezero
 
+try:
+    import cupy
+
+    array_types = (np.ndarray, cupy.ndarray)
+except ImportError:
+    array_types = np.ndarray
+
 
 # =============================================================================
 # Config
@@ -69,7 +76,7 @@ class Variable:
             name: 変数の名前
         """
         if data is not None:
-            if not isinstance(data, np.ndarray):
+            if not isinstance(data, array_types):
                 # Noneでなくかつndarrayインスタンスでないときは例外を発生させる
                 raise TypeError(f"{type(data)} is not supported")
 
@@ -131,7 +138,8 @@ class Variable:
             create_graph: 逆伝播の計算グラフを作成するかどうか
         """
         if self.grad is None:
-            self.grad = Variable(np.ones_like(self.data))  # 逆伝播の初期値が無ければ1
+            xp = dezero.cuda.get_array_module(self.data)
+            self.grad = Variable(xp.ones_like(self.data))  # 逆伝播の初期値が無ければ1
 
         funcs = []  # 処理すべき関数のリスト
         seen_set = set()  # 関数の重複を避けるための集合
@@ -217,6 +225,16 @@ class Variable:
         """
         return dezero.functions.sum(self, axis, keepdims)
 
+    def to_cpu(self) -> None:
+        """CPUにデータを移動する"""
+        if self.data is not None:
+            self.data = dezero.cuda.as_numpy(self.data)
+
+    def to_gpu(self) -> None:
+        """GPUにデータを移動する"""
+        if self.data is not None:
+            self.data = dezero.cuda.as_cupy(self.data)
+
 
 class Parameter(Variable):
     pass
@@ -236,17 +254,18 @@ def as_variable(obj: any) -> Variable:
     return Variable(obj)
 
 
-def as_array(x: any) -> np.ndarray:
+def as_array(x: any, array_module: object = np) -> np.ndarray:
     """スカラー値ならばndarrayに変換する
 
     Args:
         x: 変換する値
+        array_module: ndarrayに変換するモジュール
 
     Returns:
         ndarrayに変換した値
     """
     if np.isscalar(x):
-        return np.array(x)
+        return array_module.array(x)
     return x
 
 
@@ -366,7 +385,9 @@ def add(x0: Variable, x1: any) -> Variable:
     Returns:
         y: 出力
     """
-    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    x1 = as_array(
+        x1, dezero.cuda.get_array_module(x0.data)
+    )  # x1がintやfloatの場合はndarrayに変換
     return Add()(x0, x1)
 
 
@@ -415,7 +436,9 @@ def mul(x0: Variable, x1: any) -> Variable:
     Returns:
         y: 出力
     """
-    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    x1 = as_array(
+        x1, dezero.cuda.get_array_module(x0.data)
+    )  # x1がintやfloatの場合はndarrayに変換
     return Mul()(x0, x1)
 
 
@@ -509,7 +532,9 @@ def sub(x0: Variable, x1: any) -> Variable:
     Returns:
         y: 出力
     """
-    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    x1 = as_array(
+        x1, dezero.cuda.get_array_module(x0.data)
+    )  # x1がintやfloatの場合はndarrayに変換
     return Sub()(x0, x1)
 
 
@@ -523,7 +548,9 @@ def rsub(x0: Variable, x1: any) -> Variable:
     Returns:
         y: 出力
     """
-    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    x1 = as_array(
+        x1, dezero.cuda.get_array_module(x0.data)
+    )  # x1がintやfloatの場合はndarrayに変換
     return sub(x1, x0)
 
 
@@ -572,7 +599,9 @@ def div(x0: Variable, x1: any) -> Variable:
     Returns:
         y: 出力
     """
-    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    x1 = as_array(
+        x1, dezero.cuda.get_array_module(x0.data)
+    )  # x1がintやfloatの場合はndarrayに変換
     return Div()(x0, x1)
 
 
@@ -586,7 +615,9 @@ def rdiv(x0: Variable, x1: any) -> Variable:
     Returns:
         y: 出力
     """
-    x1 = as_array(x1)  # x1がintやfloatの場合はndarrayに変換
+    x1 = as_array(
+        x1, dezero.cuda.get_array_module(x0.data)
+    )  # x1がintやfloatの場合はndarrayに変換
     return Div()(x1, x0)
 
 

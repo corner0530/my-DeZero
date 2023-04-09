@@ -1,7 +1,7 @@
 import numpy as np
 
-from dezero import utils
-from dezero.core import Function, Variable, as_variable, as_array
+from dezero import cuda, utils
+from dezero.core import Function, Variable, as_array, as_variable
 
 
 # =============================================================================
@@ -19,7 +19,8 @@ class Sin(Function):
         Returns:
             y: 出力
         """
-        y = np.sin(x)
+        xp = cuda.get_array_module(x)
+        y = xp.sin(x)
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -60,7 +61,8 @@ class Cos(Function):
         Returns:
             y: 出力
         """
-        y = np.cos(x)
+        xp = cuda.get_array_module(x)
+        y = xp.cos(x)
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -101,7 +103,8 @@ class Tanh(Function):
         Returns:
             y: 出力
         """
-        y = np.tanh(x)
+        xp = cuda.get_array_module(x)
+        y = xp.tanh(x)
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -142,7 +145,8 @@ class Exp(Function):
         Returns:
             y: 出力
         """
-        y = np.exp(x)
+        xp = cuda.get_array_module(x)
+        y = xp.exp(x)
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -183,7 +187,8 @@ class Log(Function):
         Returns:
             y: 出力
         """
-        y = np.log(x)
+        xp = cuda.get_array_module(x)
+        y = xp.log(x)
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -394,8 +399,12 @@ class GetItemGrad(Function):
         Returns:
             gx: 入力側に伝わる微分
         """
-        gx = np.zeros(self.in_shape)
-        np.add.at(gx, self.slices, gy)
+        xp = cuda.get_array_module(gy)
+        gx = xp.zeros(self.in_shape)
+        if xp is np:
+            np.add.at(gx, self.slices, gy)
+        else:
+            xp.scatter_add(gx, self.slices, gy)
         return gx
 
     def backward(self, ggx: Variable) -> Variable:
@@ -567,7 +576,8 @@ class BroadcastTo(Function):
             y: 出力
         """
         self.x_shape = x.shape
-        y = np.broadcast_to(x, self.shape)
+        xp = cuda.get_array_module(x)
+        y = xp.broadcast_to(x, self.shape)
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -726,8 +736,9 @@ class Sigmoid(Function):
         Returns:
             y: 出力
         """
-        # y = 1 / (1 + np.exp(-x))
-        y = np.tanh(x * 0.5) * 0.5 + 0.5  # 実装の改良
+        xp = cuda.get_array_module(x)
+        # y = 1 / (1 + xp.exp(-x))
+        y = xp.tanh(x * 0.5) * 0.5 + 0.5  # 実装の改良
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -782,7 +793,8 @@ class ReLU(Function):
         Returns:
             y: 出力
         """
-        y = np.maximum(x, 0.0)
+        xp = cuda.get_array_module(x)
+        y = xp.maximum(x, 0.0)
         return y
 
     def backward(self, gy: Variable) -> Variable:
@@ -852,8 +864,9 @@ class Softmax(Function):
         Returns:
             y: 出力
         """
+        xp = cuda.get_array_module(x)
         y = x - x.max(axis=self.axis, keepdims=True)
-        y = np.exp(y)
+        y = xp.exp(y)
         y /= y.sum(axis=self.axis, keepdims=True)
         return y
 
@@ -1004,7 +1017,8 @@ class SoftmaxCrossEntropy(Function):
 
         gy *= 1 / N
         y = softmax(x)
-        t_onehot = np.eye(CLS_NUM, dtype=t.dtype)[t.data]
+        xp = cuda.get_array_module(x)
+        t_onehot = xp.eye(CLS_NUM, dtype=t.dtype)[t.data]
         y = (y - t_onehot) * gy
         return y
 
@@ -1038,7 +1052,7 @@ def accuracy(y: Variable, t: Variable) -> Variable:
     y, t = as_variable(y), as_variable(t)
 
     pred = y.data.argmax(axis=1).reshape(t.shape)
-    result = (pred == t.data)
+    result = pred == t.data
     acc = result.mean()
     return Variable(as_array(acc))
 
@@ -1070,7 +1084,8 @@ class Clip(Function):
         Returns:
             y: 出力
         """
-        y = np.clip(x, self.x_min, self.x_max)
+        xp = cuda.get_array_module(x)
+        y = xp.clip(x, self.x_min, self.x_max)
         return y
 
     def backward(self, gy: Variable) -> Variable:

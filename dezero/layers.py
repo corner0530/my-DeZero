@@ -3,6 +3,7 @@ import weakref
 import numpy as np
 
 import dezero.functions as F
+from dezero import cuda
 from dezero.core import Parameter
 
 
@@ -79,6 +80,16 @@ class Layer:
         for param in self.params():
             param.cleargrad()
 
+    def to_cpu(self) -> None:
+        """全てのパラメータをCPUに移動"""
+        for param in self.params():
+            param.to_cpu()
+
+    def to_gpu(self) -> None:
+        """全てのパラメータをGPUに移動"""
+        for param in self.params():
+            param.to_gpu()
+
 
 class Linear(Layer):
     """線形変換を行う層
@@ -117,9 +128,13 @@ class Linear(Layer):
         else:
             self.b = Parameter(np.zeros(out_size, dtype=dtype), name="b")
 
-    def _init_w(self) -> None:
-        """重みの初期化"""
-        w_data = np.random.randn(self.in_size, self.out_size).astype(
+    def _init_w(self, xp: object = np) -> None:
+        """重みの初期化
+
+        Args:
+            xp: npかcupy
+        """
+        w_data = xp.random.randn(self.in_size, self.out_size).astype(
             self.dtype
         ) * np.sqrt(1 / self.in_size)
         self.w.data = w_data
@@ -136,7 +151,8 @@ class Linear(Layer):
         # データを流すタイミングで重みを初期化
         if self.w.data is None:
             self.in_size = x.shape[1]
-            self._init_w()
+            xp = cuda.get_array_module(x)
+            self._init_w(xp)
 
         y = F.linear(x, self.w, self.b)
         return y
