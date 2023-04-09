@@ -1,7 +1,7 @@
 import numpy as np
 
 from dezero import utils
-from dezero.core import Function, Variable, as_variable
+from dezero.core import Function, Variable, as_variable, as_array
 
 
 # =============================================================================
@@ -978,6 +978,27 @@ def softmax_cross_entropy(x: Variable, t: Variable) -> Variable:
         y: 出力
     """
     return SoftmaxCrossEntropy()(x, t)
+
+
+def accuracy(y: Variable, t: Variable) -> Variable:
+    """正解率を計算する関数
+
+    Args:
+        y: 予測結果
+        t: 正解データ
+
+    Returns:
+        acc: 正解率
+
+    Note:
+        この関数は微分不可能
+    """
+    y, t = as_variable(y), as_variable(t)
+
+    pred = y.data.argmax(axis=1).reshape(t.shape)
+    result = (pred == t.data)
+    acc = result.mean()
+    return Variable(as_array(acc))
 
 
 class Clip(Function):
