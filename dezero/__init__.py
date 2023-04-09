@@ -13,6 +13,7 @@
 # full version
 
 from dezero.core import (
+    Config,
     Function,
     Parameter,
     Variable,
@@ -20,6 +21,7 @@ from dezero.core import (
     as_variable,
     no_grad,
     setup_variable,
+    test_mode,
     using_config,
 )
 from dezero.dataloaders import DataLoader

@@ -21,9 +21,11 @@ class Config:
 
     Attributes:
         enable_backprop (bool): 逆伝播を有効にするかどうか
+        train (bool): 学習時かどうか
     """
 
     enable_backprop = True
+    train = True
 
 
 @contextlib.contextmanager  # コンテキストマネージャを作成するデコレータ
@@ -40,6 +42,11 @@ def using_config(name: str, value: bool) -> contextlib._GeneratorContextManager:
         yield  # 例外が発生するとここにも送られる
     finally:
         setattr(Config, name, old_value)  # 後処理として設定を元に戻す
+
+
+def test_mode() -> contextlib._GeneratorContextManager:
+    """withブロックの中でテストモードにするコンテキストマネージャ"""
+    return using_config("train", False)
 
 
 def no_grad() -> contextlib._GeneratorContextManager:
