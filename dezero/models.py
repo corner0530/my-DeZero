@@ -20,6 +20,38 @@ class Model(Layer):
         return utils.plot_dot_graph(y, verbose=True, to_file=to_file)
 
 
+class Sequential(Model):
+    """シーケンシャルモデル
+
+    Attributes:
+        layers (list): レイヤのリスト
+    """
+    def __init__(self, *layers: Layer) -> None:
+        """コンストラクタ
+
+        Args:
+            layers: レイヤのリスト
+        """
+        super().__init__()
+        self.layers = []
+        for i, layer in enumerate(layers):
+            setattr(self, 'l' + str(i), layer)
+            self.layers.append(layer)
+
+    def forward(self, x: object) -> object:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+
 class MLP(Model):
     """多層パーセプトロン
 

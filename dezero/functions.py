@@ -218,6 +218,9 @@ def log(x: Variable) -> Variable:
     return Log()(x)
 
 
+# =============================================================================
+# Tensor operations: reshape / transpose / get_item / expand_dims / flatten
+# =============================================================================
 class Reshape(Function):
     """テンソルを整形する関数を表すクラス
 
@@ -434,6 +437,37 @@ def get_item(x: Variable, slices: tuple) -> Variable:
     return f(x)
 
 
+def expand_dims(x: Variable, axis: int) -> Variable:
+    """指定した軸に1を挿入して拡張する関数
+
+    Args:
+        x: 入力
+        axis: 挿入する軸
+
+    Returns:
+        y: 出力
+    """
+    x = as_variable(x)
+    shape = list(x.shape)
+    shape.insert(axis, 1)
+    return reshape(x, tuple(shape))
+
+
+def flatten(x: Variable) -> Variable:
+    """バッチの各要素の多次元配列を1次元配列に変換する関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return reshape(x, (x.shape[0], -1))
+
+
+# =============================================================================
+# sum / sum_to / broadcast_to / average / matmul / linear
+# =============================================================================
 class Sum(Function):
     """和を計算する関数を表すクラス
 
@@ -725,6 +759,9 @@ def linear_simple(x: Variable, w: Variable, b: Variable = None) -> Variable:
     return y
 
 
+# =============================================================================
+# activation function: sigmoid / relu / softmax / log_softmax / leaky_relu
+# =============================================================================
 class Sigmoid(Function):
     """シグモイド関数を計算する関数を表すクラス"""
 
@@ -900,6 +937,117 @@ def softmax(x: Variable, axis: int = 1) -> Variable:
     return Softmax(axis)(x)
 
 
+class LogSoftmax(Function):
+    """対数ソフトマックス関数を表すクラス
+
+    Attributes:
+        axis(int | tuple[int]): 対数ソフトマックス関数を適用する軸
+    """
+
+    def __init__(self, axis: int | tuple[int] = 1) -> None:
+        """コンストラクタ
+
+        Args:
+            axis: 対数ソフトマックス関数を適用する軸
+        """
+        self.axis = axis
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        log_z = utils.logsumexp(x, self.axis)
+        y = x - log_z
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        y = self.outputs[0]()
+        gx = gy - exp(y) * gy.sum(axis=self.axis, keepdims=True)
+        return gx
+
+
+def log_softmax(x: Variable, axis: int | tuple[int] = 1) -> Variable:
+    """対数ソフトマックス関数
+
+    Args:
+        x: 入力
+        axis: 対数ソフトマックス関数を適用する軸
+
+    Returns:
+        y: 出力
+    """
+    return LogSoftmax(axis)(x)
+
+
+class LeakyReLU(Function):
+    """LeakyReLUを表すクラス
+
+    Attributes:
+        slope(float): 傾き
+    """
+
+    def __init__(self, slope: float) -> None:
+        """コンストラクタ
+
+        Args:
+            slope: 傾き
+        """
+        self.slope = slope
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x.copy()
+        y[x <= 0] *= self.slope
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        (x,) = self.inputs
+        mask = (x.data > 0).astype(gy.dtype)
+        mask[mask <= 0] = self.slope
+        gx = gy * mask
+        return gx
+
+
+def leaky_relu(x: Variable, slope: float = 0.2) -> Variable:
+    """LeakyReLU
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return LeakyReLU(slope)(x)
+
+
 def mean_squared_error_simple(x0: Variable, x1: Variable) -> Variable:
     """平均二乗誤差を計算する関数
 
@@ -1037,6 +1185,49 @@ def softmax_cross_entropy(x: Variable, t: Variable) -> Variable:
     return SoftmaxCrossEntropy()(x, t)
 
 
+def sigmoid_cross_entropy(x: Variable, t: Variable) -> Variable:
+    """シグモイド関数と交差エントロピー誤差を合わせて計算する関数
+
+    Args:
+        x: 入力
+        t: 教師データ
+
+    Returns:
+        y: 出力
+    """
+    if x.ndim != t.ndim:
+        t = t.reshape(*x.shape)
+    x, t = as_variable(x), as_variable(t)
+    N = len(x)
+    p = sigmoid(x)
+    p = clip(p, 1e-15, 1.0)
+    tlog_p = t * log(p) + (1 - t) * log(1 - p)
+    y = -1 * sum(tlog_p) / N
+    return y
+
+
+def binary_cross_entropy(p: np.ndarray, t: np.ndarray) -> np.ndarray:
+    """二値交差エントロピー誤差を計算する関数
+
+    Args:
+        p: 予測結果
+        t: 正解データ
+
+    Returns:
+        y: 出力
+    """
+    if p.ndim != t.ndim:
+        t = t.reshape(*p.shape)
+    N = len(t)
+    p = clip(p, 1e-15, 0.999)
+    tlog_p = t * log(p) + (1 - t) * log(1 - p)
+    y = -1 * sum(tlog_p) / N
+    return y
+
+
+# =============================================================================
+# accuracy / dropout / batch_norm / embed_id
+# =============================================================================
 def accuracy(y: Variable, t: Variable) -> Variable:
     """正解率を計算する関数
 
@@ -1212,6 +1403,112 @@ def batch_norm(
         y: 出力
     """
     return BatchNorm(mean, var, decay, eps)(x, gamma, beta)
+
+
+def embed_id(x: np.ndarray, W: np.ndarray) -> np.ndarray:
+    """単語IDを単語ベクトルに変換する関数
+
+    Args:
+        x: 単語ID
+        W: 単語ベクトルの重みパラメータ
+
+    Returns:
+        y: 単語ベクトル
+    """
+    return W[x]
+
+
+# =============================================================================
+# max / min / clip
+# =============================================================================
+class Max(Function):
+    """最大値を求める
+
+    Args:
+        axis: 最大値を求める軸
+        keepdims: 次元を保持するかどうか
+    """
+
+    def __init__(self, axis: int | tuple[int] = None, keepdims: bool = False) -> None:
+        """コンストラクタ
+
+        Args:
+            axis: 最大値を求める軸
+            keepdims: 次元を保持するかどうか
+        """
+        self.axis = axis
+        self.keepdims = keepdims
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x.max(axis=self.axis, keepdims=self.keepdims)
+        return y
+
+    def backward(self, gy: Variable) -> Variable:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+        """
+        x = self.inputs[0]
+        y = self.outputs[0]()  # weakref
+
+        shape = utils.max_backward_shape(x, self.axis)
+        gy = reshape(gy, shape)
+        y = reshape(y, shape)
+        cond = x.data == y.data
+        gy = broadcast_to(gy, cond.shape)
+        return gy * cond
+
+
+class Min(Max):
+    """最小値を求める"""
+
+    def forward(self, x: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = x.min(axis=self.axis, keepdims=self.keepdims)
+        return y
+
+
+def max(x: Variable, axis: int | tuple[int] = None, keepdims: bool = False) -> Variable:
+    """最大値を求める関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Max(axis, keepdims)(x)
+
+
+def min(x: Variable, axis: int | tuple[int] = None, keepdims: bool = False) -> Variable:
+    """最小値を求める関数
+
+    Args:
+        x: 入力
+
+    Returns:
+        y: 出力
+    """
+    return Min(axis, keepdims)(x)
 
 
 class Clip(Function):

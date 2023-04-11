@@ -7,6 +7,19 @@ from dezero.datasets import Dataset
 
 
 class DataLoader:
+    """DataLoader
+
+    Attributes:
+        dataset (Dataset): データセット
+        batch_size (int): バッチサイズ
+        shuffle (bool): エポックごとにデータをシャッフルするかどうか
+        data_size (int): データセットのサイズ
+        max_iter (int): イテレーションの最大値
+        gpu (bool): GPUを使用するかどうか
+        iteration (int): 現在のイテレーション回数
+        index (np.ndarray): データセットのインデックス
+    """
+
     def __init__(
         self,
         dataset: Dataset,
@@ -83,3 +96,41 @@ class DataLoader:
     def to_gpu(self) -> None:
         """データをGPUに移す"""
         self.gpu = True
+
+
+class SeqDataLoader(DataLoader):
+    """系列データ用のDataLoader"""
+
+    def __init__(self, dataset: Dataset, batch_size: int, gpu: bool = False) -> None:
+        """コンストラクタ
+
+        Args:
+            dataset: データセット
+            batch_size: バッチサイズ
+            gpu: GPUを使用するかどうか
+        """
+        super().__init__(dataset=dataset, batch_size=batch_size, shuffle=False, gpu=gpu)
+
+    def __next__(self) -> tuple[np.ndarray, np.ndarray]:
+        """次のミニバッチを返す
+
+        Returns:
+            x: 入力データ
+            t: 教師データ
+        """
+        if self.iteration >= self.max_iter:
+            self.reset()
+            raise StopIteration
+
+        jump = self.data_size // self.batch_size
+        batch_index = [
+            (i * jump + self.iteration) % self.data_size for i in range(self.batch_size)
+        ]
+        batch = [self.dataset[i] for i in batch_index]
+
+        xp = cuda.cupy if self.gpu else np
+        x = xp.array([example[0] for example in batch])
+        t = xp.array([example[1] for example in batch])
+
+        self.iteration += 1
+        return x, t

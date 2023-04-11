@@ -375,6 +375,9 @@ class Deconv2d(Layer):
         return y
 
 
+# =============================================================================
+# RNN / LSTM
+# =============================================================================
 class RNN(Layer):
     """RNNのクラス
 
@@ -417,6 +420,111 @@ class RNN(Layer):
         return h_new
 
 
+class LSTM(Layer):
+    """LSTMのクラス
+
+    Attributes:
+        x2f (Linear): 入力から忘却ゲートへの変換
+        x2i (Linear): 入力から入力ゲートへの変換
+        x2o (Linear): 入力から出力ゲートへの変換
+        x2u (Linear): 入力から更新ゲートへの変換
+        h2f (Linear): 隠れ状態から忘却ゲートへの変換
+        h2i (Linear): 隠れ状態から入力ゲートへの変換
+        h2o (Linear): 隠れ状態から出力ゲートへの変換
+        h2u (Linear): 隠れ状態から更新ゲートへの変換
+        h (ndarray): 隠れ状態
+        c (ndarray): セル状態
+    """
+
+    def __init__(self, hidden_size:int, in_size:int=None):
+        """コンストラクタ
+
+        Args:
+            hidden_size: 隠れ状態のサイズ
+            in_size: 入力サイズ
+        """
+        super().__init__()
+
+        H, I = hidden_size, in_size
+        self.x2f = Linear(H, in_size=I)
+        self.x2i = Linear(H, in_size=I)
+        self.x2o = Linear(H, in_size=I)
+        self.x2u = Linear(H, in_size=I)
+        self.h2f = Linear(H, in_size=H, nobias=True)
+        self.h2i = Linear(H, in_size=H, nobias=True)
+        self.h2o = Linear(H, in_size=H, nobias=True)
+        self.h2u = Linear(H, in_size=H, nobias=True)
+        self.reset_state()
+
+    def reset_state(self)->None:
+        """隠れ状態とセル状態をリセットする"""
+        self.h = None
+        self.c = None
+
+    def forward(self, x:object)->object:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            h_new: 隠れ状態
+        """
+        if self.h is None:
+            f = F.sigmoid(self.x2f(x))
+            i = F.sigmoid(self.x2i(x))
+            o = F.sigmoid(self.x2o(x))
+            u = F.tanh(self.x2u(x))
+        else:
+            f = F.sigmoid(self.x2f(x) + self.h2f(self.h))
+            i = F.sigmoid(self.x2i(x) + self.h2i(self.h))
+            o = F.sigmoid(self.x2o(x) + self.h2o(self.h))
+            u = F.tanh(self.x2u(x) + self.h2u(self.h))
+
+        if self.c is None:
+            c_new = i * u
+        else:
+            c_new = (f * self.c) + (i * u)
+
+        h_new = o * F.tanh(c_new)
+
+        self.h, self.c = h_new, c_new
+        return h_new
+
+
+# =============================================================================
+# EmbedID / BatchNorm
+# =============================================================================
+class EmbedID(Layer):
+    """Embeddingレイヤ
+
+    Attributes:
+        W (Parameter): 重み
+    """
+
+    def __init__(self, in_size: int, out_size: int) -> None:
+        """コンストラクタ
+
+        Args:
+            in_size: 入力サイズ
+            out_size: 出力サイズ
+        """
+        super().__init__()
+        self.W = Parameter(np.random.randn(in_size, out_size), name="W")
+
+    def __call__(self, x: object) -> object:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
+        y = self.W[x]
+        return y
+
+
 class BatchNorm(Layer):
     """Batch Normalization
 
@@ -435,7 +543,12 @@ class BatchNorm(Layer):
         self.gamma = Parameter(None, name="gamma")
         self.beta = Parameter(None, name="beta")
 
-    def _init_params(self, x):
+    def _init_params(self, x: object)->None:
+        """パラメータの初期化
+
+        Args:
+            x: 入力
+        """
         xp = cuda.get_array_module(x)
         D = x.shape[1]
         if self.avg_mean.data is None:
@@ -448,6 +561,14 @@ class BatchNorm(Layer):
             self.beta.data = xp.zeros(D, dtype=x.dtype)
 
     def __call__(self, x: object) -> object:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            y: 出力
+        """
         if self.avg_mean.data is None:
             self._init_params(x)
         return F.batch_norm(
