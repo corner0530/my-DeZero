@@ -1,6 +1,7 @@
-import numpy as np
+import cupy as np  # !! CUPY !!
 import pytest
 
+import dezero.functions as F
 from dezero import Variable
 from dezero.utils import array_equal, gradient_check
 
@@ -31,7 +32,7 @@ def test_backward2():
 def test_backward3():
     x = np.random.randn(3, 3)
     y = np.random.randn(3, 1)
-    f = lambda x: x * y
+    f = lambda y: x * y
     assert gradient_check(f, x)
 
 
