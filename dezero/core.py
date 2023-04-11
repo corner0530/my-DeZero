@@ -133,6 +133,10 @@ class Variable:
         self.creator = func
         self.generation = func.generation + 1  # 親の関数より1大きい世代に設定
 
+    def unchain(self) -> None:
+        """生みの親の関数とのつながりを削除する"""
+        self.creator = None
+
     def cleargrad(self) -> None:
         """微分を初期化する"""
         self.grad = None
@@ -185,6 +189,17 @@ class Variable:
             if not retain_grad:
                 for y in f.outputs:
                     y().grad = None  # yはweakref
+
+    def unchain_backward(self) -> None:
+        """計算グラフを逆にたどりながら生みの親の関数とのつながりを削除する"""
+        if self.creator is not None:
+            funcs = [self.creator]
+            while funcs:
+                f = funcs.pop()
+                for x in f.inputs:
+                    if x.creator is not None:
+                        funcs.append(x.creator)
+                        x.unchain()
 
     def reshape(self, *shape: tuple[int]) -> "Variable":
         """形状を変更する

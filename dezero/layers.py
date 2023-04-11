@@ -375,6 +375,48 @@ class Deconv2d(Layer):
         return y
 
 
+class RNN(Layer):
+    """RNNのクラス
+
+    Attributes:
+        x2h (Linear): 入力から隠れ状態への変換
+        h2h (Linear): 隠れ状態から隠れ状態への変換
+        h (ndarray): 隠れ状態
+    """
+
+    def __init__(self, hidden_size: int, in_size: int = None) -> None:
+        """コンストラクタ
+
+        Args:
+            hidden_size: 隠れ状態のサイズ
+            in_size: 入力サイズ
+        """
+        super().__init__()
+        self.x2h = Linear(hidden_size, in_size=in_size)
+        self.h2h = Linear(hidden_size, in_size=in_size, nobias=True)
+        self.h = None
+
+    def reset_state(self) -> None:
+        """隠れ状態をリセットする"""
+        self.h = None
+
+    def forward(self, x: object) -> object:
+        """順伝播
+
+        Args:
+            x: 入力
+
+        Returns:
+            h_new: 隠れ状態
+        """
+        if self.h is None:
+            h_new = F.tanh(self.x2h(x))
+        else:
+            h_new = F.tanh(self.x2h(x) + self.h2h(self.h))
+        self.h = h_new
+        return h_new
+
+
 class BatchNorm(Layer):
     """Batch Normalization
 
