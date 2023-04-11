@@ -710,3 +710,5 @@ def setup_variable() -> None:
 
     Variable.matmul = dezero.functions.matmul
     Variable.dot = dezero.functions.matmul
+    Variable.max = dezero.functions.max
+    Variable.min = dezero.functions.min

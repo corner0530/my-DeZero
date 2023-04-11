@@ -147,7 +147,7 @@ class Conv2d(Function):
             outsize=(x.shape[2], x.shape[3]),
         )
         # gw
-        gw = Conv2dGradW(self)(x, gy)
+        gw = Conv2DGradW(self)(x, gy)
         # gb
         gb = None
         if b.data is not None:
@@ -256,7 +256,8 @@ class Deconv2d(Function):
         # gx
         gx = conv2d(gy, w, b=None, stride=self.stride, pad=self.pad)
         # gw
-        gw = Conv2dGradW(self)
+        f = Conv2DGradW(self)
+        gw = f(gy, x)
         # gb
         gb = None
         if b.data is not None:
@@ -288,7 +289,7 @@ def deconv2d(
     return Deconv2d(stride, pad, outsize)(x, w, b)
 
 
-class Conv2dGradW(Function):
+class Conv2DGradW(Function):
     """畳み込み層の重み側の微分のクラス
 
     Attributes:
