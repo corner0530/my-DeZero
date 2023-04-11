@@ -681,7 +681,7 @@ def pow(x: Variable, c: int | float) -> Variable:
 
 def setup_variable() -> None:
     """Variableの演算子のオーバーロードを行う関数"""
-    Variable.__add__ = add  # +演算子をオーバーロード
+    Variable.__add__ = add  # type: ignore # +演算子をオーバーロード
     Variable.__radd__ = add  # 右側がVariableの場合のオーバーロード
     Variable.__mul__ = mul  # *演算子をオーバーロード
     Variable.__rmul__ = mul  # 右側がVariableの場合のオーバーロード

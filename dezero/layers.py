@@ -101,7 +101,7 @@ class Layer:
         """
         for name in self._params:
             obj = self.__dict__[name]
-            key = parent_key + '/' + name if parent_key else name
+            key = parent_key + "/" + name if parent_key else name
 
             if isinstance(obj, Layer):
                 obj._flatten_params(params_dict, key)
@@ -170,7 +170,7 @@ class Linear(Layer):
         self.out_size = out_size
         self.dtype = dtype
 
-        self.w = Parameter(None, name="w")
+        self.W = Parameter(None, name="W")
         if self.in_size is not None:  # in_sizeが指定されていない場合は後回し
             self._init_w()
 
@@ -188,7 +188,7 @@ class Linear(Layer):
         w_data = xp.random.randn(self.in_size, self.out_size).astype(
             self.dtype
         ) * np.sqrt(1 / self.in_size)
-        self.w.data = w_data
+        self.W.data = w_data
 
     def forward(self, x: object) -> object:
         """順伝播
@@ -200,12 +200,12 @@ class Linear(Layer):
             y: 出力
         """
         # データを流すタイミングで重みを初期化
-        if self.w.data is None:
+        if self.W.data is None:
             self.in_size = x.shape[1]
             xp = cuda.get_array_module(x)
             self._init_w(xp)
 
-        y = F.linear(x, self.w, self.b)
+        y = F.linear(x, self.W, self.b)
         return y
 
 
@@ -222,6 +222,7 @@ class Conv2d(Layer):
         pad (int | tuple[int]): パディング
         dtype (np.dtype): パラメータのデータ型
     """
+
     def __init__(
         self,
         out_channels: int,
@@ -251,7 +252,7 @@ class Conv2d(Layer):
         self.pad = pad
         self.dtype = dtype
 
-        self.w = Parameter(None, name="w")
+        self.W = Parameter(None, name="W")
         if in_channels is not None:
             self._init_w()
 
@@ -271,7 +272,7 @@ class Conv2d(Layer):
         KH, KW = pair(self.kernel_size)
         scale = np.sqrt(1 / (C * KH * KW))
         w_data = xp.random.randn(OC, C, KH, KW).astype(self.dtype) * scale
-        self.w.data = w_data
+        self.W.data = w_data
 
     def forward(self, x: object) -> object:
         """順伝播
@@ -282,12 +283,12 @@ class Conv2d(Layer):
         Returns:
             y: 出力
         """
-        if self.w.data is None:
+        if self.W.data is None:
             self.in_channels = x.shape[1]
             xp = cuda.get_array_module(x)
             self._init_w(xp)
 
-        y = F.conv2d(x, self.w, self.b, self.stride, self.pad)
+        y = F.conv2d(x, self.W, self.b, self.stride, self.pad)
         return y
 
 
@@ -304,6 +305,7 @@ class Deconv2d(Layer):
         pad (int | tuple[int]): パディング
         dtype (np.dtype): パラメータのデータ型
     """
+
     def __init__(
         self,
         out_channels: int,
@@ -333,7 +335,7 @@ class Deconv2d(Layer):
         self.pad = pad
         self.dtype = dtype
 
-        self.w = Parameter(None, name="w")
+        self.W = Parameter(None, name="W")
         if in_channels is not None:
             self._init_w()
 
@@ -364,10 +366,48 @@ class Deconv2d(Layer):
         Returns:
             y: 出力
         """
-        if self.w.data is None:
+        if self.W.data is None:
             self.in_channels = x.shape[1]
             xp = cuda.get_array_module(x)
             self._init_w(xp)
 
-        y = F.deconv2d(x, self.w, self.b, self.stride, self.pad)
+        y = F.deconv2d(x, self.W, self.b, self.stride, self.pad)
         return y
+
+
+class BatchNorm(Layer):
+    """Batch Normalization
+
+    Attributes:
+        avg_mean (Parameter): 平均の移動平均
+        avg_var (Parameter): 分散の移動平均
+        gamma (Parameter): スケール係数
+        beta (Parameter): シフト係数
+    """
+
+    def __init__(self) -> None:
+        """コンストラクタ"""
+        super().__init__()
+        self.avg_mean = Parameter(None, name="avg_mean")
+        self.avg_var = Parameter(None, name="avg_var")
+        self.gamma = Parameter(None, name="gamma")
+        self.beta = Parameter(None, name="beta")
+
+    def _init_params(self, x):
+        xp = cuda.get_array_module(x)
+        D = x.shape[1]
+        if self.avg_mean.data is None:
+            self.avg_mean.data = xp.zeros(D, dtype=x.dtype)
+        if self.avg_var.data is None:
+            self.avg_var.data = xp.ones(D, dtype=x.dtype)
+        if self.gamma.data is None:
+            self.gamma.data = xp.ones(D, dtype=x.dtype)
+        if self.beta.data is None:
+            self.beta.data = xp.zeros(D, dtype=x.dtype)
+
+    def __call__(self, x: object) -> object:
+        if self.avg_mean.data is None:
+            self._init_params(x)
+        return F.batch_norm(
+            x, self.gamma, self.beta, self.avg_mean.data, self.avg_var.data
+        )

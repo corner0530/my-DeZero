@@ -845,7 +845,7 @@ class Softmax(Function):
     """ソフトマックス関数を表すクラス
 
     Attributes:
-        axis: ソフトマックス関数を適用する軸
+        axis(int | tuple[int]): ソフトマックス関数を適用する軸
     """
 
     def __init__(self, axis: int = 1) -> None:
@@ -1080,12 +1080,146 @@ def dropout(x: Variable, dropout_ratio: float = 0.5):
         return x
 
 
+class BatchNorm(Function):
+    """Batch Normalizationを行うクラス
+
+    Attributes:
+        avg_mean(np.ndarray): 平均の移動平均
+        avg_var(np.ndarray): 分散の移動平均
+        decay(float): 移動平均の減衰率
+        eps(float): 分散の微小値
+        inv_std(np.ndarray): 逆数の標準偏差
+    """
+
+    def __init__(
+        self, mean: np.ndarray, var: np.ndarray, decay: float, eps: float
+    ) -> None:
+        """コンストラクタ
+
+        Args:
+            mean: 平均
+            var: 分散
+            decay: 移動平均の減衰率
+            eps: 分散の微小値
+        """
+        self.avg_mean = mean
+        self.avg_var = var
+        self.decay = decay
+        self.eps = eps
+        self.inv_std = None
+
+    def forward(self, x: np.ndarray, gamma: np.ndarray, beta: np.ndarray) -> np.ndarray:
+        """順伝播
+
+        Args:
+            x: 入力
+            gamma: スケール係数
+            beta: シフト係数
+
+        Returns:
+            y: 出力
+        """
+        assert x.ndim == 2 or x.ndim == 4
+
+        x_ndim = x.ndim
+        if x_ndim == 4:
+            N, C, H, W = x.shape
+            # (N, C, H, W) -> (N*H*W, C)
+            x = x.transpose(0, 2, 3, 1).reshape(-1, C)
+
+        xp = cuda.get_array_module(x)
+
+        if dezero.Config.train:
+            mean = x.mean(axis=0)
+            var = x.var(axis=0)
+            inv_std = 1 / xp.sqrt(var + self.eps)
+            xc = (x - mean) * inv_std
+
+            m = x.size // gamma.size
+            s = m - 1.0 if m - 1.0 > 1.0 else 1.0
+            adjust = m / s
+            self.avg_mean *= self.decay
+            self.avg_mean += (1 - self.decay) * mean
+            self.avg_var *= self.decay
+            self.avg_var += (1 - self.decay) * adjust * var
+            self.inv_std = inv_std
+        else:
+            inv_std = 1 / xp.sqrt(self.avg_var + self.eps)
+            xc = (x - self.avg_mean) * inv_std
+        y = gamma * xc + beta
+
+        if x_ndim == 4:
+            # (N*H*W, C) -> (N, C, H, W)
+            y = y.reshape(N, H, W, C).transpose(0, 3, 1, 2)
+        return y
+
+    def backward(self, gy: Variable) -> tuple[Variable, Variable, Variable]:
+        """逆伝播
+
+        Args:
+            gy: 出力側から伝わる微分
+
+        Returns:
+            gx: 入力側に伝わる微分
+            ggamma: スケール係数に伝わる微分
+            gbeta: シフト係数に伝わる微分
+        """
+        gy_ndim = gy.ndim
+        if gy_ndim == 4:
+            N, C, H, W = gy.shape
+            gy = gy.transpose(0, 2, 3, 1).reshape(-1, C)
+
+        x, gamma, beta = self.inputs
+        batch_size = len(gy)
+
+        if x.ndim == 4:
+            N, C, H, W = x.shape
+            x = x.transpose(0, 2, 3, 1).reshape(-1, C)
+        mean = x.sum(axis=0) / batch_size
+        xc = (x - mean) * self.inv_std
+
+        gbeta = sum(gy, axis=0)
+        ggamma = sum(xc * gy, axis=0)
+        gx = gy - gbeta / batch_size - xc * ggamma / batch_size
+        gx *= gamma * self.inv_std
+
+        if gy_ndim == 4:
+            gx = gx.reshape(N, H, W, C).transpose(0, 3, 1, 2)
+        return gx, ggamma, gbeta
+
+
+def batch_norm(
+    x: np.ndarray,
+    gamma: np.ndarray,
+    beta: np.ndarray,
+    mean: np.ndarray,
+    var: np.ndarray,
+    decay: float = 0.9,
+    eps: float = 2e-5,
+) -> np.ndarray:
+    """Batch Normalizationを行う関数
+
+    Args:
+        x: 入力
+        gamma: スケール係数
+        beta: シフト係数
+        mean: 平均
+        var: 分散
+        decay: 移動平均の減衰率
+        eps: 分散の微小値
+
+    Returns:
+        y: 出力
+    """
+    return BatchNorm(mean, var, decay, eps)(x, gamma, beta)
+
+
 class Clip(Function):
     """上限と下限の範囲内に収める関数を表すクラス
 
     Attributes:
-        x_min: xの下限
-        x_max: xの上限
+        x_min (float): xの下限
+        x_max (float): xの上限
     """
 
     def __init__(self, x_min: float, x_max: float) -> None:
@@ -1143,18 +1277,14 @@ def clip(x: Variable, x_min: float, x_max: float) -> Variable:
 # =============================================================================
 # conv2d / col2im / im2col / basic_math
 # =============================================================================
-from dezero.functions_conv import conv2d
-from dezero.functions_conv import deconv2d
-from dezero.functions_conv import conv2d_simple
-from dezero.functions_conv import im2col
-from dezero.functions_conv import col2im
-from dezero.functions_conv import pooling_simple
-from dezero.functions_conv import pooling
-from dezero.functions_conv import average_pooling
-from dezero.core import add
-from dezero.core import sub
-from dezero.core import rsub
-from dezero.core import mul
-from dezero.core import div
-from dezero.core import neg
-from dezero.core import pow
+from dezero.core import add, div, mul, neg, pow, rsub, sub
+from dezero.functions_conv import (
+    average_pooling,
+    col2im,
+    conv2d,
+    conv2d_simple,
+    deconv2d,
+    im2col,
+    pooling,
+    pooling_simple,
+)

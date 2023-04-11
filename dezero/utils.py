@@ -4,7 +4,7 @@ import urllib.request
 
 import numpy as np
 
-from dezero import Function, Variable
+from dezero import Function, Variable, as_variable, cuda
 
 
 # =============================================================================
@@ -124,7 +124,7 @@ def plot_dot_graph(
         from IPython import display
 
         return display.Image(filename=to_file)
-    except ImportError:
+    except (ImportError, ValueError):
         pass
 
 
@@ -196,6 +196,149 @@ def logsumexp(x: Variable, axis: int = 1):
     s = np.log(y.sum(axis=axis, keepdims=True))
     m += s
     return m
+
+
+def max_backward_shape(x, axis):
+    if axis is None:
+        axis = range(x.ndim)
+    elif isinstance(axis, int):
+        axis = (axis,)
+    else:
+        axis = axis
+
+    shape = [s if ax not in axis else 1 for ax, s in enumerate(x.shape)]
+    return shape
+
+
+# =============================================================================
+# Gradient check
+# =============================================================================
+def gradient_check(
+    f: object,
+    x: Variable,
+    *args: object,
+    rtol: float = 1e-4,
+    atol: float = 1e-5,
+    **kwargs: object
+) -> bool:
+    """勾配チェック
+
+    Args:
+        f: 関数
+        x: 入力
+        *args: 関数の引数
+        rtol: 相対誤差
+        atol: 絶対誤差
+        **kwargs: 関数のキーワード引数
+
+    Returns:
+        結果が範囲内かどうか
+    """
+    x = as_variable(x)
+    x.data = x.data.astype(np.float64)
+
+    num_grad = numerical_grad(f, x, *args, **kwargs)
+    y = f(x, *args, **kwargs)
+    y.backward()
+    bp_grad = x.grad.data
+
+    assert bp_grad.shape == num_grad.shape
+    res = array_allclose(num_grad, bp_grad, atol=atol, rtol=rtol)
+
+    if not res:
+        print("")
+        print("========== FAILED (Gradient Check) ==========")
+        print("Numerical Grad")
+        print(" shape: {}".format(num_grad.shape))
+        val = str(num_grad.flatten()[:10])
+        print(" values: {} ...".format(val[1:-1]))
+        print("Backprop Grad")
+        print(" shape: {}".format(bp_grad.shape))
+        val = str(bp_grad.flatten()[:10])
+        print(" values: {} ...".format(val[1:-1]))
+    return res
+
+
+def numerical_grad(
+    f: object, x: Variable, *args: object, **kwargs: object
+) -> np.ndarray:
+    """数値微分
+
+    Args:
+        f: 関数
+        x: 入力
+        *args: 関数の引数
+        **kwargs: 関数のキーワード引数
+
+    Returns:
+        数値微分の結果
+    """
+    eps = 1e-4
+
+    x = x.data if isinstance(x, Variable) else x
+    xp = cuda.get_array_module(x)
+    if xp is not np:
+        np_x = cuda.as_numpy(x)
+    else:
+        np_x = x
+    grad = xp.zeros_like(x)
+
+    it = np.nditer(np_x, flags=["multi_index"], op_flags=["readwrite"])
+    while not it.finished:
+        idx = it.multi_index
+        tmp_val = x[idx].copy()
+
+        x[idx] = tmp_val + eps
+        y1 = f(x, *args, **kwargs)  # f(x+h)
+        if isinstance(y1, Variable):
+            y1 = y1.data
+        y1 = y1.copy()
+
+        x[idx] = tmp_val - eps
+        y2 = f(x, *args, **kwargs)  # f(x-h)
+        if isinstance(y2, Variable):
+            y2 = y2.data
+        y2 = y2.copy()
+
+        diff = (y1 - y2).sum()
+        grad[idx] = diff / (2 * eps)
+
+        x[idx] = tmp_val
+        it.iternext()
+    return grad
+
+
+def array_equal(a: np.ndarray, b: np.ndarray) -> bool:
+    """2つの配列が等しいかどうかを判定する
+
+    Args:
+        a: 配列
+        b: 配列
+    """
+    a = a.data if isinstance(a, Variable) else a
+    b = b.data if isinstance(b, Variable) else b
+    a, b = cuda.as_numpy(a), cuda.as_numpy(b)
+    return np.array_equal(a, b)
+
+
+def array_allclose(
+    a: np.ndarray, b: np.ndarray, rtol: float = 1e-4, atol: float = 1e-5
+) -> bool:
+    """2つの配列が近いかどうかを判定する
+
+    Args:
+        a: 配列
+        b: 配列
+        rtol: 相対誤差
+        atol: 絶対誤差
+
+    Returns:
+        結果が範囲内かどうか
+    """
+    a = a.data if isinstance(a, Variable) else a
+    b = b.data if isinstance(b, Variable) else b
+    a, b = cuda.as_numpy(a), cuda.as_numpy(b)
+    return np.allclose(a, b, atol=atol, rtol=rtol)
 
 
 # =============================================================================
