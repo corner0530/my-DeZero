@@ -62,6 +62,97 @@ class Optimizer:
 
 
 # =============================================================================
+# Hook functions
+# =============================================================================
+class WeightDecay:
+    """重み減衰
+
+    Attributes:
+        rate (float): 減衰率
+    """
+
+    def __init__(self, rate: float) -> None:
+        """コンストラクタ
+
+        Args:
+            rate: 減衰率
+        """
+        self.rate = rate
+
+    def __call__(self, params: list[Parameter]) -> None:
+        """重みを減衰させる
+
+        Args:
+            params: パラメータ
+        """
+        for param in params:
+            param.grad.data += self.rate * param.data
+
+
+class ClipGrad:
+    """勾配のクリッピング
+
+    Attributes:
+        max_norm (float): 最大ノルム
+    """
+
+    def __init__(self, max_norm: float) -> None:
+        """コンストラクタ
+
+        Args:
+            max_norm: 最大ノルム
+        """
+        self.max_norm = max_norm
+
+    def __call__(self, params: list[Parameter]) -> None:
+        """勾配のクリッピングを行う
+
+        Args:
+            params: パラメータ
+        """
+        total_norm = 0
+        for param in params:
+            total_norm += (param.grad.data**2).sum()
+        total_norm = math.sqrt(float(total_norm))
+
+        rate = self.max_norm / (total_norm + 1e-6)
+        if rate < 1:
+            for param in params:
+                param.grad.data *= rate
+
+
+class FreezeParam:
+    """パラメータの固定
+
+    Attributes:
+        freeze_params (list): 固定するパラメータ
+    """
+
+    def __init__(self, *layers: Layer) -> None:
+        """コンストラクタ
+
+        Args:
+            layers: 固定するパラメータを持つレイヤ
+        """
+        self.freeze_params = []
+        for l in layers:
+            if isinstance(l, Parameter):
+                self.freeze_params.append(l)
+            else:
+                for p in l.params():
+                    self.freeze_params.append(p)
+
+    def __call__(self, params: list[Parameter]) -> None:
+        """勾配を初期化する
+
+        Args:
+            params: パラメータ
+        """
+        for p in self.freeze_params:
+            p.grad = None
+
+
+# =============================================================================
 # SGD / MomentumSGD / AdaGrad / AdaDelta / Adam
 # =============================================================================
 class SGD(Optimizer):
